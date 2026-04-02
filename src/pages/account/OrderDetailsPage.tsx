@@ -20,6 +20,7 @@ function statusToLabel(status: string): string {
   const s = String(status ?? '').trim().toUpperCase();
   const map: Record<string, string> = {
     PENDING: 'Đang xử lý',
+    PENDING_PAYMENT: 'Chờ thanh toán',
     PROCESSING: 'Đang xử lý',
     PAID: 'Đã thanh toán',
     COMPLETED: 'Hoàn tất',
@@ -40,6 +41,7 @@ function paymentMethodToBrand(method?: string | null): { brand: string; last4: s
   if (m === 'paypal') return { brand: 'PayPal', last4: '—', expires: '—' };
   if (m === 'paypal_credit') return { brand: 'PayPal Credit', last4: '—', expires: '—' };
   if (m === 'cash_on_delivery') return { brand: 'Thanh toán khi nhận hàng', last4: '—', expires: '—' };
+  if (m === 'vnpay') return { brand: 'VNPay', last4: '—', expires: '—' };
   return { brand: method, last4: '—', expires: '—' };
 }
 
@@ -89,7 +91,9 @@ function mapOrderDtoToDetails(dto: OrderDto, shippingAddress?: SavedAddress | nu
       {
         label: 'Trạng thái',
         sublabel: statusToLabel(dto.status),
-        completed: String(dto.status ?? '').trim().toUpperCase() !== 'PENDING',
+        completed: !['PENDING', 'PENDING_PAYMENT'].includes(
+          String(dto.status ?? '').trim().toUpperCase()
+        ),
         active: true,
         icon: 'local_shipping',
       },

@@ -624,6 +624,11 @@ export async function createOrder(body: CreateOrderRequest): Promise<OrderDto> {
   return apiPost<OrderDto>('/orders', body, { auth: true });
 }
 
+/** POST /api/payments/vnpay/create — trả về URL chuyển hướng VNPay */
+export async function createVnpayPayment(orderId: number): Promise<{ paymentUrl: string }> {
+  return apiPost<{ paymentUrl: string }>('/payments/vnpay/create', { orderId }, { auth: true });
+}
+
 /** GET /api/orders – requires Authorization */
 export async function getOrders(): Promise<OrderDto[]> {
   const raw = await apiGet<OrderDto[] | PageResponse<OrderDto> | ItemsPageResponse<OrderDto>>('/orders', { auth: true });

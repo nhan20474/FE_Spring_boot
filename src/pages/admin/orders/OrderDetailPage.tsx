@@ -68,7 +68,7 @@ const OrderDetailPage: React.FC = () => {
     const s = String(statusRaw ?? '').trim().toLowerCase();
     if (s === 'cancelled' || s === 'canceled' || s === 'reject') return 'Rejected';
     if (s === 'paid' || s === 'completed') return 'Completed';
-    if (s === 'pending' || s === 'processing') return 'Processing';
+    if (s === 'pending' || s === 'pending_payment' || s === 'processing') return 'Processing';
     if (s === 'shipping') return 'Shipping';
     if (s === 'shipped' || s === 'delivered') return 'In Transit';
     if (s === 'returned' || s === 'refunded') return 'Rejected';
