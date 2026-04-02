@@ -1,5 +1,5 @@
 import React from 'react';
-import type { KpiStat } from './dashboardMockData';
+import type { KpiStat } from './dashboardTypes';
 
 type StatCardProps = {
   stat: KpiStat;

@@ -1,274 +1,85 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as backend from '@/services/backend';
 import type { CategoryDto } from '@/types/api';
+import AdminCategoryFormModal from '@/pages/admin/categories/AdminCategoryFormModal';
+import {
+  buildCategoryDtoTree,
+  countDescendants,
+  type AdminCategoryTreeNode,
+} from '@/utils/categoryDtoTree';
 
-/* ────────────────────────────────────────────────── */
-/*  Inline-edit row                                   */
-/* ────────────────────────────────────────────────── */
-const EditableRow: React.FC<{
-  cat: CategoryDto;
-  onSaved: (updated: CategoryDto) => void;
-  onDelete: (id: number) => void;
-}> = ({ cat, onSaved, onDelete }) => {
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(cat.name);
-  const [description, setDescription] = useState(cat.description ?? '');
-  const [slug, setSlug] = useState(cat.slug ?? '');
-  const [parentId, setParentId] = useState(cat.parentId != null ? String(cat.parentId) : '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
-
-  const startEdit = () => {
-    setName(cat.name);
-    setDescription(cat.description ?? '');
-    setSlug(cat.slug ?? '');
-    setParentId(cat.parentId != null ? String(cat.parentId) : '');
-    setError(null);
-    setEditing(true);
-    setTimeout(() => nameRef.current?.focus(), 50);
-  };
-
-  const cancel = () => { setEditing(false); setError(null); };
-
-  const save = async () => {
-    if (!name.trim()) { setError('Tên không được để trống'); return; }
-    setSaving(true);
-    setError(null);
-    try {
-      const updated = await backend.adminUpdateCategoryV2(cat.id, {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        slug: slug.trim() || undefined,
-        parentId: parentId.trim() ? Number(parentId.trim()) : null,
-      });
-      onSaved(updated);
-      setEditing(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Lưu thất bại');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (editing) {
-    return (
-      <tr className="bg-blue-50/50">
-        <td className="px-4 py-3 text-slate-400 text-xs font-mono">{cat.id}</td>
-        <td className="px-4 py-3">
-          <input
-            ref={nameRef}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
-            className="w-full border border-primary rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
-        </td>
-        <td className="px-4 py-3">
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
-            placeholder="Mô tả (tùy chọn)"
-            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            placeholder="slug (tùy chọn)"
-            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </td>
-        <td className="px-4 py-3">
-          <input
-            value={parentId}
-            onChange={(e) => setParentId(e.target.value)}
-            placeholder="parentId"
-            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </td>
-        <td className="px-4 py-3 text-right">
-          <div className="flex items-center justify-end gap-2">
-            <button
-              onClick={save}
-              disabled={saving}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-blue-600 disabled:opacity-60 transition-colors"
-            >
-              {saving
-                ? <span className="material-icons text-[14px] animate-spin">refresh</span>
-                : <span className="material-icons text-[14px]">check</span>}
-              Lưu
-            </button>
-            <button
-              onClick={cancel}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 transition-colors"
-            >
-              Hủy
-            </button>
-          </div>
-        </td>
-      </tr>
-    );
-  }
+const CategoryBranch: React.FC<{
+  node: AdminCategoryTreeNode;
+  onEdit: (c: CategoryDto) => void;
+  onAddChild: (parentId: number) => void;
+  onDelete: (c: CategoryDto) => void;
+}> = ({ node, onEdit, onAddChild, onDelete }) => {
+  const hasChildren = node.children.length > 0;
 
   return (
-    <tr className="hover:bg-slate-50 transition-colors group">
-      <td className="px-4 py-3 text-slate-400 text-xs font-mono">{cat.id}</td>
-      <td className="px-4 py-3">
-        <span className="font-semibold text-slate-900">{cat.name}</span>
-      </td>
-      <td className="px-4 py-3 text-slate-500 text-sm">
-        {cat.description || <span className="text-slate-300 italic">Chưa có mô tả</span>}
-      </td>
-      <td className="px-4 py-3 text-slate-500 text-sm">{cat.slug || <span className="text-slate-300 italic">—</span>}</td>
-      <td className="px-4 py-3 text-slate-500 text-sm">{cat.parentId ?? <span className="text-slate-300 italic">—</span>}</td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={startEdit}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition-colors"
-            aria-label="Chỉnh sửa"
+    <div className={hasChildren ? 'mb-1' : ''}>
+      <div className="group flex flex-col gap-3 rounded-xl border border-transparent bg-white px-3 py-3 transition-colors hover:border-slate-200 hover:bg-slate-50/90 dark:bg-slate-900/40 dark:hover:border-slate-600 dark:hover:bg-slate-800/80 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span
+            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            aria-hidden
           >
-            <span className="material-icons text-[14px]">edit</span>
+            <span className="material-icons text-[20px]">{hasChildren ? 'folder' : 'label'}</span>
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-slate-900 dark:text-white">{node.name}</span>
+              {node.slug ? (
+                <span className="inline-flex max-w-full items-center rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  /{node.slug}
+                </span>
+              ) : null}
+            </div>
+            {node.description ? (
+              <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{node.description}</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 pl-12 sm:justify-end sm:pl-0 sm:opacity-100">
+          <button
+            type="button"
+            onClick={() => onAddChild(node.id)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            <span className="material-icons text-[16px]">add</span>
+            Thêm con
+          </button>
+          <button
+            type="button"
+            onClick={() => onEdit(node)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            <span className="material-icons text-[16px]">edit</span>
             Sửa
           </button>
           <button
-            onClick={() => onDelete(cat.id)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-500 text-xs font-semibold hover:bg-red-50 transition-colors"
-            aria-label="Xóa"
+            type="button"
+            onClick={() => onDelete(node)}
+            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/40"
           >
-            <span className="material-icons text-[14px]">delete</span>
+            <span className="material-icons text-[16px]">delete_outline</span>
             Xóa
           </button>
         </div>
-      </td>
-    </tr>
+      </div>
+
+      {hasChildren && (
+        <div className="ml-4 mt-1 border-l-2 border-slate-200 pl-3 dark:border-slate-700">
+          {node.children.map((ch) => (
+            <CategoryBranch key={ch.id} node={ch} onEdit={onEdit} onAddChild={onAddChild} onDelete={onDelete} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
-/* ────────────────────────────────────────────────── */
-/*  Add form (inline at top of table)                 */
-/* ────────────────────────────────────────────────── */
-const AddCategoryForm: React.FC<{ onCreated: (cat: CategoryDto) => void }> = ({ onCreated }) => {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [slug, setSlug] = useState('');
-  const [parentId, setParentId] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
-
-  const handleOpen = () => { setOpen(true); setTimeout(() => nameRef.current?.focus(), 50); };
-  const handleClose = () => { setOpen(false); setName(''); setDescription(''); setSlug(''); setParentId(''); setError(null); };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) { setError('Tên không được để trống'); return; }
-    setSaving(true);
-    setError(null);
-    try {
-      const cat = await backend.adminCreateCategoryV2({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        slug: slug.trim() || undefined,
-        parentId: parentId.trim() ? Number(parentId.trim()) : null,
-      });
-      onCreated(cat);
-      handleClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Tạo thất bại');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <button
-        onClick={handleOpen}
-        className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-4 py-2 text-sm font-semibold hover:bg-blue-600 transition-colors"
-      >
-        <span className="material-icons text-[18px]">add</span>
-        Thêm danh mục
-      </button>
-    );
-  }
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col sm:flex-row items-start sm:items-end gap-3 p-4 bg-blue-50 border border-primary/20 rounded-2xl"
-    >
-      <div className="flex-1 min-w-0">
-        <label className="block text-xs font-bold text-slate-600 mb-1">
-          Tên danh mục <span className="text-red-500">*</span>
-        </label>
-        <input
-          ref={nameRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="VD: Điện thoại"
-          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-        />
-        {error && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><span className="material-icons text-[12px]">error</span>{error}</p>}
-      </div>
-      <div className="flex-1 min-w-0">
-        <label className="block text-xs font-bold text-slate-600 mb-1">Mô tả</label>
-        <input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Mô tả ngắn (tùy chọn)"
-          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-        />
-      </div>
-      <div className="w-full sm:w-44">
-        <label className="block text-xs font-bold text-slate-600 mb-1">Slug</label>
-        <input
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          placeholder="dien-thoai"
-          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-        />
-      </div>
-      <div className="w-full sm:w-36">
-        <label className="block text-xs font-bold text-slate-600 mb-1">Parent ID</label>
-        <input
-          value={parentId}
-          onChange={(e) => setParentId(e.target.value)}
-          placeholder="(để trống nếu root)"
-          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-        />
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-60 transition-colors"
-        >
-          {saving
-            ? <span className="material-icons text-[16px] animate-spin">refresh</span>
-            : <span className="material-icons text-[16px]">add</span>}
-          Tạo
-        </button>
-        <button
-          type="button"
-          onClick={handleClose}
-          className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors"
-        >
-          Hủy
-        </button>
-      </div>
-    </form>
-  );
-};
-
-/* ────────────────────────────────────────────────── */
-/*  Main page                                         */
-/* ────────────────────────────────────────────────── */
 const CategoryListPage: React.FC = () => {
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -276,7 +87,13 @@ const CategoryListPage: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<CategoryDto | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchCategories = async () => {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalEditing, setModalEditing] = useState<CategoryDto | null>(null);
+  const [modalDefaultParent, setModalDefaultParent] = useState<number | null>(null);
+
+  const tree = useMemo(() => buildCategoryDtoTree(categories), [categories]);
+
+  const fetchCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -287,16 +104,36 @@ const CategoryListPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  const openCreate = (parentId: number | null = null) => {
+    setModalEditing(null);
+    setModalDefaultParent(parentId);
+    setModalOpen(true);
   };
 
-  useEffect(() => { fetchCategories(); }, []);
-
-  const handleCreated = (cat: CategoryDto) => {
-    setCategories((prev) => [cat, ...prev]);
+  const openEdit = (c: CategoryDto) => {
+    setModalEditing(c);
+    setModalDefaultParent(null);
+    setModalOpen(true);
   };
 
-  const handleSaved = (updated: CategoryDto) => {
-    setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  const closeModal = () => {
+    setModalOpen(false);
+    setModalEditing(null);
+    setModalDefaultParent(null);
+  };
+
+  const handleSaved = (cat: CategoryDto) => {
+    setCategories((prev) => {
+      const exists = prev.some((c) => c.id === cat.id);
+      if (exists) return prev.map((c) => (c.id === cat.id ? cat : c));
+      return [cat, ...prev];
+    });
   };
 
   const handleDeleteConfirm = async () => {
@@ -313,101 +150,124 @@ const CategoryListPage: React.FC = () => {
     }
   };
 
+  const deleteDescCount = deleteConfirm ? countDescendants(deleteConfirm.id, categories) : 0;
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-[28px] leading-tight font-bold text-[#202224]">Danh mục</h1>
-          <p className="text-xs font-semibold text-slate-500 mt-1">
-            {loading ? 'Đang tải…' : `${categories.length} danh mục`}
+          <h1 className="text-[28px] font-bold leading-tight text-[#202224] dark:text-white">Danh mục sản phẩm</h1>
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            {loading ? 'Đang tải…' : `${categories.length} danh mục trong hệ thống`}
           </p>
         </div>
-        <AddCategoryForm onCreated={handleCreated} />
+        <button
+          type="button"
+          onClick={() => openCreate(null)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-600"
+        >
+          <span className="material-icons text-[20px]">add_circle_outline</span>
+          Thêm danh mục gốc
+        </button>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
-          <span className="material-icons text-[20px]">error_outline</span>
-          {error}
-          <button onClick={fetchCategories} className="ml-auto text-red-600 underline font-semibold">Thử lại</button>
+        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+          <span className="material-icons shrink-0 text-[20px]">error_outline</span>
+          <span className="flex-1">{error}</span>
+          <button type="button" onClick={fetchCategories} className="font-semibold underline">
+            Thử lại
+          </button>
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/70">
-              <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400 w-16">ID</th>
-              <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Tên danh mục</th>
-              <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Mô tả</th>
-              <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Slug</th>
-              <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Parent ID</th>
-              <th className="px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-slate-400 w-40">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="animate-pulse">
-                  <td className="px-4 py-4"><div className="h-3 w-6 bg-slate-100 rounded" /></td>
-                  <td className="px-4 py-4"><div className="h-4 w-32 bg-slate-100 rounded" /></td>
-                  <td className="px-4 py-4"><div className="h-3 w-48 bg-slate-100 rounded" /></td>
-                  <td className="px-4 py-4"><div className="h-7 w-28 bg-slate-100 rounded-lg ml-auto" /></td>
-                </tr>
-              ))
-            ) : categories.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-16 text-center text-slate-400">
-                  <span className="material-icons text-4xl block mb-2">category</span>
-                  <p className="font-semibold">Chưa có danh mục nào</p>
-                </td>
-              </tr>
-            ) : (
-              categories.map((cat) => (
-                <EditableRow
-                  key={cat.id}
-                  cat={cat}
-                  onSaved={handleSaved}
-                  onDelete={(id) => setDeleteConfirm(categories.find((c) => c.id === id) ?? null)}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/50 shadow-sm dark:border-slate-700 dark:bg-slate-900/30">
+        <div className="border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Danh sách</p>
+        </div>
+
+        <div className="p-3 sm:p-4">
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="animate-pulse rounded-xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-800/50">
+                  <div className="flex gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-40 rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-3 w-full max-w-md rounded bg-slate-100 dark:bg-slate-800" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : tree.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <span className="material-icons mb-3 text-5xl text-slate-300 dark:text-slate-600">category</span>
+              <p className="font-semibold text-slate-700 dark:text-slate-300">Chưa có danh mục nào</p>
+              <button
+                type="button"
+                onClick={() => openCreate(null)}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+              >
+                <span className="material-icons text-[18px]">add</span>
+                Tạo danh mục đầu tiên
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {tree.map((node) => (
+                <CategoryBranch
+                  key={node.id}
+                  node={node}
+                  onEdit={openEdit}
+                  onAddChild={(parentId) => openCreate(parentId)}
+                  onDelete={setDeleteConfirm}
                 />
-              ))
-            )}
-          </tbody>
-        </table>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Delete confirm dialog */}
+      <AdminCategoryFormModal
+        open={modalOpen}
+        onClose={closeModal}
+        categories={categories}
+        defaultParentId={modalDefaultParent}
+        editing={modalEditing}
+        onSaved={handleSaved}
+      />
+
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-icons text-red-500 text-3xl">warning</span>
-              <h3 className="text-lg font-bold text-slate-900">Xác nhận xóa</h3>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:border dark:border-slate-700 dark:bg-slate-900">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="material-icons text-3xl text-amber-500">warning</span>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Xác nhận xóa danh mục</h3>
             </div>
-            <p className="text-slate-500 text-sm mb-1">
-              Bạn sắp xóa danh mục:
-            </p>
-            <p className="font-bold text-slate-800 mb-2">"{deleteConfirm.name}"</p>
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-6">
-              ⚠ Các sản phẩm thuộc danh mục này có thể bị ảnh hưởng.
-            </p>
-            <div className="flex gap-3">
+            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">&ldquo;{deleteConfirm.name}&rdquo;</p>
+            {deleteDescCount > 0 && (
+              <p className="mt-3 text-sm text-amber-800 dark:text-amber-200">
+                {deleteDescCount} danh mục con.
+              </p>
+            )}
+            <div className="mt-6 flex gap-3">
               <button
+                type="button"
                 onClick={() => setDeleteConfirm(null)}
                 disabled={deleting}
-                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Hủy
               </button>
               <button
+                type="button"
                 onClick={handleDeleteConfirm}
                 disabled={deleting}
-                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 disabled:opacity-60 transition-colors flex items-center justify-center gap-1"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-500 py-2.5 text-sm font-bold text-white hover:bg-red-600 disabled:opacity-60"
               >
-                {deleting && <span className="material-icons text-[16px] animate-spin">refresh</span>}
+                {deleting && <span className="material-icons animate-spin text-[18px]">refresh</span>}
                 Xóa
               </button>
             </div>

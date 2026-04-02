@@ -1,15 +1,16 @@
 import React from 'react';
 import type { StockProduct } from '../productStockMock';
-import { formatUsd } from '../productStockMock';
+import { formatVND } from '@/utils';
 import ColorDots from './ColorDots';
 
 type ProductStockTableProps = {
   rows: StockProduct[];
   onEdit: (p: StockProduct) => void;
   onDelete: (p: StockProduct) => void;
+  onInventoryDetail: (p: StockProduct) => void;
 };
 
-const ProductStockTable: React.FC<ProductStockTableProps> = ({ rows, onEdit, onDelete }) => {
+const ProductStockTable: React.FC<ProductStockTableProps> = ({ rows, onEdit, onDelete, onInventoryDetail }) => {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-[900px] w-full text-left">
@@ -43,13 +44,22 @@ const ProductStockTable: React.FC<ProductStockTableProps> = ({ rows, onEdit, onD
                 </td>
                 <td className="py-4 px-4 font-semibold max-w-[200px]">{row.name}</td>
                 <td className="py-4 px-4 text-slate-700">{row.category}</td>
-                <td className="py-4 px-4 font-medium tabular-nums">{formatUsd(row.price)}</td>
+                <td className="py-4 px-4 font-medium tabular-nums">{formatVND(row.price)}</td>
                 <td className="py-4 px-4 tabular-nums text-slate-800">{row.piece}</td>
                 <td className="py-4 px-4">
                   <ColorDots colors={row.colors} />
                 </td>
                 <td className="py-4 px-4 text-right whitespace-nowrap">
                   <div className="inline-flex items-center gap-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => onInventoryDetail(row)}
+                      className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 inline-flex items-center justify-center transition-colors"
+                      aria-label="Reserve / sold / chi tiết kho"
+                      title="Chi tiết kho (reserve / sold)"
+                    >
+                      <span className="material-icons text-[18px]">inventory_2</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => onEdit(row)}

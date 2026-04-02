@@ -35,12 +35,13 @@ const iconMap: Record<string, string> = {
 };
 
 export function mapCategoryDtoToCategory(dto: CategoryDto): Category {
-  const slug = nameToSlug(dto.name);
+  const slug = (dto.slug && dto.slug.trim()) ? dto.slug.trim().toLowerCase() : nameToSlug(dto.name);
   return {
     id: String(dto.id),
     name: dto.name,
     slug,
     icon: iconMap[slug] ?? 'category',
+    parentId: dto.parentId != null ? String(dto.parentId) : null,
   };
 }
 
@@ -48,6 +49,7 @@ export function mapProductDtoToTrending(dto: ProductDto): TrendingProduct {
   const price = Number(dto.price);
   return {
     id: String(dto.id),
+    slug: dto.slug?.trim() || undefined,
     name: dto.name,
     category: dto.categoryName,
     image: dto.image ?? '',
@@ -63,6 +65,7 @@ export function mapProductDtoToTrending(dto: ProductDto): TrendingProduct {
 export function mapProductDtoToListing(dto: ProductDto): ListingProduct {
   return {
     id: String(dto.id),
+    slug: dto.slug?.trim() || undefined,
     name: dto.name,
     price: dto.price,
     image: dto.image ?? '',
@@ -76,6 +79,7 @@ export function mapProductDtoToProduct(dto: ProductDto): Product {
   const image = dto.image ?? '';
   return {
     id: String(dto.id),
+    slug: dto.slug?.trim() || undefined,
     name: dto.name,
     category: dto.categoryName,
     price: dto.price,

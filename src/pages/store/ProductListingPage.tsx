@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useApiProducts } from '@/hooks/useProductApi';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { formatVND } from '@/utils';
+import { formatVND, productDetailPath } from '@/utils';
 import Breadcrumbs from '@/components/store/Breadcrumbs';
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
@@ -120,7 +120,11 @@ const ProductListingPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {listingProducts.map((product) => {
               const productId = product.productDetailId || product.id;
-              const productPath = `/product/${productId}`;
+              const productPath = productDetailPath({
+                id: product.id,
+                slug: product.slug,
+                productDetailId: product.productDetailId,
+              });
               return (
                 <Link
                   key={product.id}

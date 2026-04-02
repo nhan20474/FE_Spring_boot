@@ -1,26 +1,18 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-/** Visible menu: core + optional (Inbox, Calendar, To-Do). Hidden items removed from nav only — routes unchanged. */
 const navGroups: Array<{
   title?: string;
   items: Array<{ label: string; path: string; icon: string }>;
 }> = [
   {
     items: [
-      { label: 'Dashboard',   path: '/admin/dashboard',  icon: 'dashboard' },
-      { label: 'Products',    path: '/admin/products',   icon: 'inventory_2' },
-      { label: 'Categories',  path: '/admin/categories', icon: 'category' },
-      { label: 'Orders',      path: '/admin/orders',     icon: 'receipt_long' },
-      { label: 'Settings',    path: '/admin/seo',        icon: 'settings' },
-    ],
-  },
-  {
-    title: 'More',
-    items: [
-      { label: 'Inbox', path: '/admin/inbox', icon: 'mail_outline' },
-      { label: 'Calendar', path: '/admin/calendar', icon: 'event' },
-      { label: 'To-Do', path: '/admin/todo', icon: 'checklist' },
+      { label: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard' },
+      { label: 'Products', path: '/admin/products', icon: 'inventory_2' },
+      { label: 'Categories', path: '/admin/categories', icon: 'category' },
+      { label: 'Orders', path: '/admin/orders', icon: 'receipt_long' },
+      { label: 'Coupons', path: '/admin/coupons', icon: 'local_offer' },
+      { label: 'Users', path: '/admin/users', icon: 'group' },
     ],
   },
   {
@@ -45,7 +37,8 @@ function pathMatchesItem(currentPath: string, itemPath: string): boolean {
     return currentPath === '/admin/orders' || currentPath.startsWith('/admin/orders/');
   }
   if (itemPath === '/admin/categories') return currentPath.startsWith('/admin/categories');
-  if (itemPath === '/admin/seo') return currentPath.startsWith('/admin/seo');
+  if (itemPath === '/admin/coupons') return currentPath.startsWith('/admin/coupons');
+  if (itemPath === '/admin/users') return currentPath.startsWith('/admin/users');
   if (itemPath === '/login') return false;
   return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }

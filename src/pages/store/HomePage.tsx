@@ -1,22 +1,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { banners } from '@/data';
-import { useApiCategories, useApiFeaturedProducts } from '@/hooks/useProductApi';
+import { useApiFeaturedProducts } from '@/hooks/useProductApi';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { formatVND } from '@/utils';
+import { formatVND, productDetailPath } from '@/utils';
 import type { TrendingProduct as TrendingProductType } from '@/types';
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
-
-const categoryIcons: Record<string, string> = {
-  smartphone: 'smartphone',
-  tablet: 'tablet',
-  ac_unit: 'ac_unit',
-  keyboard: 'keyboard',
-  headset: 'headphones',
-  tv: 'home_max',
-};
 
 function StarRating({ rating }: { rating: number }) {
   const full = Math.floor(rating);
@@ -35,7 +26,11 @@ function StarRating({ rating }: { rating: number }) {
 function TrendingCard({ product, imageError, onImageError }: { product: TrendingProductType; imageError: boolean; onImageError: () => void }) {
   const { addItem } = useCart();
   const { toggleItem, isInWishlist } = useWishlist();
-  const to = product.productDetailId ? `/product/${product.productDetailId}` : `/product/${product.id}`;
+  const to = productDetailPath({
+    id: product.id,
+    slug: product.slug,
+    productDetailId: product.productDetailId,
+  });
   const productId = product.productDetailId ?? product.id;
   const imgSrc = imageError || !product.image ? PLACEHOLDER_IMAGE : product.image;
   const inWishlist = isInWishlist(productId);
@@ -125,8 +120,7 @@ const HomePage: React.FC = () => {
   const [heroBanner] = banners;
   const [activeTab, setActiveTab] = useState<'new' | 'bestseller' | 'featured'>('new');
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
-  const { data: categories, loading: categoriesLoading } = useApiCategories();
-  const { data: trendingProducts, loading: featuredLoading } = useApiFeaturedProducts();
+  const { data: trendingProducts } = useApiFeaturedProducts();
 
   const markImageError = (id: string) => setFailedImageIds((prev) => new Set(prev).add(id));
 
@@ -160,38 +154,6 @@ const HomePage: React.FC = () => {
                 </Link>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section className="mb-14 md:mb-16">
-          <h3 className="text-xl font-bold mb-6 md:mb-7 text-slate-900 dark:text-white">Shop by Category</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 sm:gap-5">
-            {categories.map((cat) => (
-              <Link
-                key={cat.id}
-                to={
-                  cat.slug === 'mobile'
-                    ? '/category/mobile'
-                    : cat.slug === 'cooling'
-                      ? '/category/cooling'
-                      : cat.slug === 'accessories'
-                        ? '/category/accessories'
-                        : cat.slug === 'audio'
-                          ? '/category/audio'
-                          : cat.slug === 'smart-home'
-                            ? '/category/smart-home'
-                            : `/search?category=${cat.slug}`
-                }
-                className="group text-center"
-              >
-                <div className="w-[88px] h-[88px] sm:w-[92px] sm:h-[92px] mx-auto rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center p-5 sm:p-6 transition-all hover:border-primary hover:shadow-lg mb-3">
-                  <span className="material-icons text-[30px] sm:text-[32px] text-slate-700 dark:text-slate-300 group-hover:text-primary" aria-hidden>
-                    {categoryIcons[cat.icon] || cat.icon}
-                  </span>
-                </div>
-                <p className="font-semibold text-sm group-hover:text-primary font-display" style={{ fontFamily: "inherit" }}>{cat.name}</p>
-              </Link>
-            ))}
           </div>
         </section>
 

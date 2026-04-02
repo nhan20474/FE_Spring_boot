@@ -181,6 +181,73 @@ export interface ApiErrorBody {
   [key: string]: unknown;
 }
 
+/** GET /api/admin/dashboard/summary */
+export interface AdminDashboardSummaryDto {
+  revenue: number;
+  ordersByStatus: Record<string, number>;
+  recentOrders: Array<{
+    id: number;
+    totalPrice: number;
+    status: string | null;
+    createdAt: string;
+    customerName?: string | null;
+  }>;
+}
+
+/** GET/POST /api/admin/coupons */
+export interface CouponDto {
+  id: number;
+  code: string;
+  discountType: string;
+  discountValue: number;
+  minOrderAmount?: number | null;
+  maxDiscountAmount?: number | null;
+  active?: boolean | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}
+
+export interface CreateCouponRequestBody {
+  code: string;
+  discountType: string;
+  discountValue: number;
+  minOrderAmount?: number | null;
+  maxDiscountAmount?: number | null;
+  active?: boolean | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}
+
+/** GET /api/admin/users */
+export interface AdminUserDto {
+  id: number;
+  name: string;
+  email: string;
+  role?: string | null;
+  phone?: string | null;
+  createdAt?: string | null;
+}
+
+export interface AdminUsersResponse {
+  items: AdminUserDto[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+/** GET /api/wishlist */
+export interface WishlistItemDto {
+  id: number;
+  productId: string | null;
+  name: string | null;
+  image: string | null;
+  price: number | null;
+  oldPrice?: number | null;
+  rating?: number | null;
+  reviews?: number | null;
+}
+
 // ——— Cart DTOs (matches backend CartDto / CartItemDto) ———
 
 export interface CartItemDto {

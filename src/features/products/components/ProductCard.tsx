@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { formatVND } from '@/utils';
+import { formatVND, productDetailPath } from '@/utils';
 import type { Product } from '@/types';
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
@@ -15,8 +15,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { addItem } = useCart();
   const { toggleItem, isInWishlist } = useWishlist();
   const [imgError, setImgError] = useState(false);
-  const productId = (product as any).productDetailId || product.id;
-  const productPath = `/product/${productId}`;
+  const productId = (product as { productDetailId?: string }).productDetailId || product.id;
+  const productPath = productDetailPath({
+    id: product.id,
+    slug: product.slug,
+    productDetailId: (product as { productDetailId?: string }).productDetailId,
+  });
   const imgSrc = imgError || !product.image ? PLACEHOLDER_IMAGE : product.image;
   const inWishlist = isInWishlist(productId);
 

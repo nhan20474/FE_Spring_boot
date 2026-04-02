@@ -5,6 +5,8 @@ import { useAvatar } from '@/context/AvatarContext';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { DEFAULT_PROFILE_IMAGE } from '@/constants/user';
+import { useApiCategories } from '@/hooks/useProductApi';
+import StoreCategoryMegaMenu from '@/components/layout/StoreCategoryMegaMenu';
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -52,15 +54,7 @@ const Header: React.FC = () => {
     };
   }, [isCategoriesOpen]);
 
-  // Category menu items with routes
-  const categoryMenuItems = [
-    { name: 'Điện thoại', path: '/category/mobile', icon: 'smartphone' },
-    { name: 'Tablet', path: '/search?category=tablets', icon: 'tablet' },
-    { name: 'Laptop', path: '/search?category=laptops', icon: 'laptop' },
-    { name: 'Phụ kiện', path: '/category/accessories', icon: 'keyboard' },
-    { name: 'Âm thanh', path: '/category/audio', icon: 'headset' },
-    { name: 'Đồng hồ thông minh', path: '/search?category=smartwatch', icon: 'watch' },
-  ];
+  const { data: categoryMenuItems, loading: categoriesLoading } = useApiCategories();
 
   return (
     <>
@@ -211,28 +205,12 @@ const Header: React.FC = () => {
                 </span>
               </button>
 
-              {/* Dropdown Menu */}
-              {isCategoriesOpen && (
-                <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 z-[100] overflow-hidden">
-                  <div className="py-2">
-                    {categoryMenuItems.map((item) => (
-                      <Link
-                        key={item.name}
-                        to={item.path}
-                        onClick={() => setIsCategoriesOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group"
-                      >
-                        <span className="material-icons text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors">
-                          {item.icon}
-                        </span>
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-200 group-hover:text-primary transition-colors">
-                          {item.name}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <StoreCategoryMegaMenu
+                flatCategories={categoryMenuItems}
+                loading={categoriesLoading}
+                open={isCategoriesOpen}
+                onNavigate={() => setIsCategoriesOpen(false)}
+              />
             </div>
             <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
             <Link to="/deals" className="hover:text-primary transition-colors">Khuyến mãi</Link>
