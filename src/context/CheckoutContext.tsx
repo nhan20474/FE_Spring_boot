@@ -1,14 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
 import type { SavedAddress, CartItem } from '@/types';
 
-export interface ShippingMethod {
-  id: string;
-  name: string;
-  price: number;
-  estimatedDays: string;
-  description?: string;
-}
-
 export interface PaymentMethod {
   type: 'credit_card' | 'paypal' | 'paypal_credit' | 'cash_on_delivery';
   cardNumber?: string;
@@ -23,11 +15,8 @@ export interface CheckoutData {
   // Step 1: Shipping Address
   selectedAddress: SavedAddress | null;
   newAddress: Partial<SavedAddress> | null;
-  
-  // Step 2: Shipping Method
-  shippingMethod: ShippingMethod | null;
-  
-  // Step 3: Payment
+
+  // Step 2: Payment
   paymentMethod: PaymentMethod | null;
   couponCode: string;
   quoteSubtotal: number | null;
@@ -55,7 +44,6 @@ interface CheckoutContextType {
 const defaultCheckoutData: CheckoutData = {
   selectedAddress: null,
   newAddress: null,
-  shippingMethod: null,
   paymentMethod: null,
   couponCode: '',
   quoteSubtotal: null,
@@ -79,7 +67,7 @@ export const CheckoutProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, []);
 
   const nextStep = useCallback(() => {
-    setCurrentStep((s) => (s < 3 ? s + 1 : s));
+    setCurrentStep((s) => (s < 2 ? s + 1 : s));
   }, []);
 
   const previousStep = useCallback(() => {

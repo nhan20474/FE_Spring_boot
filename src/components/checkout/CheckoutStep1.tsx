@@ -1,10 +1,18 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useCheckout } from '@/context/CheckoutContext';
-import { getToken } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import { getToken, isApiConfigured, ApiError } from '@/services/api';
 import { getAddresses, createAddress, getProfile } from '@/services/backend';
 import { addressDtoToSaved } from '@/services/addressMapper';
 import type { SavedAddress } from '@/types';
 import AddressCard from './AddressCard';
+
+/** Id địa chỉ lưu trên server (POST /api/orders cần số hợp lệ). */
+function isServerAddressId(id: string | null | undefined): boolean {
+  if (id == null || id === '') return false;
+  return /^\d+$/.test(id) && Number(id) > 0;
+}
 
 interface CheckoutStep1Props {
   onNext: () => void;
@@ -31,22 +39,34 @@ const defaultForm = {
 
 const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
   const { checkoutData, updateCheckoutData } = useCheckout();
+  const { isAuthenticated, isInitialized } = useAuth();
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState(defaultForm);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [continueError, setContinueError] = useState<string | null>(null);
+
+  const useBackendAddresses = isApiConfigured() && isInitialized && isAuthenticated && Boolean(getToken());
 
   useEffect(() => {
+    if (!isInitialized) return;
     let cancelled = false;
-    (async () => {
-      const token = getToken();
-      if (!token) {
-        setAddresses([]);
-        setSelectedAddressId(null);
+
+    const run = async () => {
+      setContinueError(null);
+
+      if (!useBackendAddresses) {
+        setAddressError(null);
         setLoadingAddresses(false);
         return;
       }
+
+      setLoadingAddresses(true);
+      setAddressError(null);
       try {
         const [list, profile] = await Promise.all([
           getAddresses(),
@@ -62,7 +82,10 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
         }
         setAddresses(merged);
         const preferred =
-          merged.find((a) => a.id === checkoutData.selectedAddress?.id) ??
+          merged.find(
+            (a) =>
+              a.id === checkoutData.selectedAddress?.id && isServerAddressId(a.id)
+          ) ??
           (profile?.defaultAddress?.id != null
             ? merged.find((a) => a.id === String(profile.defaultAddress.id))
             : undefined) ??
@@ -71,23 +94,64 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
         if (preferred) {
           setSelectedAddressId(preferred.id);
           updateCheckoutData({ selectedAddress: preferred });
+        } else {
+          setSelectedAddressId(null);
         }
-      } catch {
+      } catch (e) {
         if (!cancelled) {
           setAddresses([]);
           setSelectedAddressId(null);
+          setAddressError(
+            e instanceof ApiError ? e.message : 'Không tải được danh sách địa chỉ. Vui lòng thử lại.'
+          );
         }
       } finally {
         if (!cancelled) setLoadingAddresses(false);
       }
-    })();
+    };
+
+    void run();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ load khi vào bước địa chỉ
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ load khi auth / API sẵn sàng
+  }, [isInitialized, useBackendAddresses]);
+
+  const retryLoadAddresses = useCallback(async () => {
+    setAddressError(null);
+    if (!useBackendAddresses) return;
+    setLoadingAddresses(true);
+    try {
+      const [list, profile] = await Promise.all([
+        getAddresses(),
+        getProfile().catch(() => null),
+      ]);
+      let merged = list.map(addressDtoToSaved);
+      if (profile?.defaultAddress) {
+        const da = addressDtoToSaved(profile.defaultAddress);
+        if (!merged.some((a) => a.id === da.id)) {
+          merged = [da, ...merged];
+        }
+      }
+      setAddresses(merged);
+      const preferred = merged.find((a) => a.isDefault) ?? merged[0];
+      if (preferred) {
+        setSelectedAddressId(preferred.id);
+        updateCheckoutData({ selectedAddress: preferred });
+      }
+    } catch (e) {
+      setAddressError(
+        e instanceof ApiError ? e.message : 'Không tải được danh sách địa chỉ. Vui lòng thử lại.'
+      );
+    } finally {
+      setLoadingAddresses(false);
+    }
+  }, [useBackendAddresses, updateCheckoutData]);
+
+  const showAddressLoading = !isInitialized || (useBackendAddresses && loadingAddresses);
 
   const handleSelectAddress = (addressId: string) => {
+    setContinueError(null);
     setSelectedAddressId(addressId);
     const address = addresses.find((a) => a.id === addressId);
     if (address) {
@@ -96,6 +160,13 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
   };
 
   const handleContinue = () => {
+    setContinueError(null);
+    if (isApiConfigured() && isAuthenticated) {
+      if (!selectedAddressId || !isServerAddressId(selectedAddressId)) {
+        setContinueError('Vui lòng chọn hoặc thêm địa chỉ đã lưu trên tài khoản để giao hàng.');
+        return;
+      }
+    }
     if (selectedAddressId) {
       onNext();
     }
@@ -103,19 +174,23 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
 
   const openModal = useCallback(() => {
     setForm(defaultForm);
+    setModalError(null);
     setIsModalOpen(true);
   }, []);
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
     setForm(defaultForm);
+    setModalError(null);
   }, []);
 
   const handleSubmitAddress = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      setModalError(null);
       const token = getToken();
       if (token) {
+        setSavingAddress(true);
         try {
           const dto = await createAddress({
             name: form.fullName.trim(),
@@ -136,33 +211,12 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
           setSelectedAddressId(mapped.id);
           updateCheckoutData({ selectedAddress: mapped });
           closeModal();
-        } catch {
-          // fallback: vẫn cho phép tiếp tục checkout với địa chỉ cục bộ
-          const newAddr: SavedAddress = {
-            id: `local-${Date.now()}`,
-            label: form.addressType,
-            tagIcon: form.addressType === 'Home' ? 'home' : form.addressType === 'Office' ? 'work' : 'add_location',
-            tagPrimary: form.addressType === 'Home',
-            name: form.fullName,
-            phone: form.phone,
-            street: form.street,
-            apartment: form.apartment,
-            city: form.city,
-            state: form.state,
-            zipCode: form.zipCode,
-            country: form.country,
-            isDefault: form.isDefault,
-            addressLines: [
-              form.street,
-              form.apartment,
-              `${form.city}, ${form.state} ${form.zipCode}`,
-              form.country,
-            ].filter(Boolean),
-          };
-          setAddresses((prev) => [...prev, newAddr]);
-          setSelectedAddressId(newAddr.id);
-          updateCheckoutData({ selectedAddress: newAddr });
-          closeModal();
+        } catch (err) {
+          setModalError(
+            err instanceof ApiError ? err.message : 'Không lưu được địa chỉ. Vui lòng thử lại.'
+          );
+        } finally {
+          setSavingAddress(false);
         }
         return;
       }
@@ -201,9 +255,43 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
     <div className="max-w-3xl mx-auto">
       <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8">Địa chỉ giao hàng</h2>
 
+      {isApiConfigured() && isInitialized && !isAuthenticated && (
+        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+          <Link to="/login?returnUrl=/checkout" className="text-primary font-semibold hover:underline">
+            Đăng nhập
+          </Link>{' '}
+          để dùng địa chỉ đã lưu trên tài khoản và đồng bộ đơn hàng với hệ thống.
+        </p>
+      )}
+
+      {useBackendAddresses && !addressError && (
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+          Danh sách đồng bộ với địa chỉ đã lưu trên <span className="font-medium text-slate-600 dark:text-slate-300">tài khoản</span> của bạn.
+        </p>
+      )}
+
+      {addressError && (
+        <div className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          <span>{addressError}</span>
+          <button
+            type="button"
+            onClick={() => void retryLoadAddresses()}
+            className="self-start rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
+
+      {continueError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          {continueError}
+        </div>
+      )}
+
       <div className="space-y-4 mb-8">
-        {loadingAddresses && <p className="text-slate-500 text-sm">Đang tải địa chỉ đã lưu…</p>}
-        {!loadingAddresses && addresses.length === 0 && getToken() && (
+        {showAddressLoading && <p className="text-slate-500 text-sm">Đang tải địa chỉ đã lưu…</p>}
+        {!showAddressLoading && addresses.length === 0 && !addressError && (
           <p className="text-slate-500 text-sm">Chưa có địa chỉ. Thêm địa chỉ mới bên dưới.</p>
         )}
         {addresses.map((address) => (
@@ -271,6 +359,11 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
               </button>
             </div>
             <form id="address-form" onSubmit={handleSubmitAddress} className="px-8 py-6 space-y-5">
+              {modalError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                  {modalError}
+                </div>
+              )}
               <div className="flex gap-3 pb-2">
                 {(['Home', 'Office', 'Other'] as const).map((type) => (
                   <button
@@ -408,9 +501,10 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
               <button
                 type="submit"
                 form="address-form"
-                className="px-8 py-3 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/25 hover:bg-blue-600 hover:-translate-y-0.5 transition-all"
+                disabled={savingAddress}
+                className="px-8 py-3 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/25 hover:bg-blue-600 hover:-translate-y-0.5 transition-all disabled:opacity-60"
               >
-                Lưu địa chỉ
+                {savingAddress ? 'Đang lưu…' : 'Lưu địa chỉ'}
               </button>
             </div>
           </div>

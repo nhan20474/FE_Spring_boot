@@ -3,8 +3,10 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useAvatar } from '@/context/AvatarContext';
 import { isApiConfigured, ApiError } from '@/services/api';
-import { getProfile, updateProfile, changePassword, uploadImage } from '@/services/backend';
+import { getProfile, updateProfile, changePassword, uploadImage, getAddresses } from '@/services/backend';
+import { addressDtoToSaved } from '@/services/addressMapper';
 import type { ProfileDto } from '@/types/api';
+import type { SavedAddress } from '@/types';
 import AccountSidebar from '@/components/account/AccountSidebar';
 import AccountHeader from '@/components/account/AccountHeader';
 import AccountFooter from '@/components/account/AccountFooter';
@@ -101,6 +103,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
   const [editForm, setEditForm] = useState<ProfileExtension>({ ...profile });
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [addressBook, setAddressBook] = useState<SavedAddress[]>([]);
+  const [addressBookLoading, setAddressBookLoading] = useState(true);
+  const [addressBookError, setAddressBookError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentAvatar = avatarUrl ?? DEFAULT_AVATAR;
@@ -118,6 +123,33 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
       .then(setApiProfile)
       .catch(() => setApiProfile(null));
   }, [isAuthenticated]);
+
+  const refreshAddressBook = useCallback(async () => {
+    if (!isApiConfigured() || !isAuthenticated) {
+      setAddressBook([]);
+      setAddressBookLoading(false);
+      setAddressBookError(null);
+      return;
+    }
+    setAddressBookLoading(true);
+    setAddressBookError(null);
+    try {
+      const list = await getAddresses();
+      setAddressBook(list.map(addressDtoToSaved));
+    } catch (e) {
+      setAddressBook([]);
+      setAddressBookError(
+        e instanceof ApiError ? e.message : 'Không tải được danh sách địa chỉ. Vui lòng thử lại.'
+      );
+    } finally {
+      setAddressBookLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isInitialized || !isAuthenticated) return;
+    void refreshAddressBook();
+  }, [isInitialized, isAuthenticated, refreshAddressBook]);
 
   useEffect(() => {
     if (!apiProfile) return;
@@ -373,32 +405,129 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
             </div>
           </section>
 
-          {/* 2. Sổ địa chỉ */}
+          {/* 2. Sổ địa chỉ — GET /api/addresses */}
           <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Sổ địa chỉ</h2>
-              <Link
-                to="/account/addresses"
-                className="flex items-center gap-2 text-primary text-sm font-bold hover:bg-primary/10 px-4 py-2 rounded-xl transition-colors"
-              >
-                <span className="material-icons text-lg">add</span>
-                + Thêm địa chỉ
-              </Link>
-            </div>
-            <div className="p-12 flex flex-col items-center justify-center text-center">
-              <div className="w-32 h-32 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-6">
-                <span className="material-icons text-6xl text-slate-400 dark:text-slate-500">location_off</span>
+            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Sổ địa chỉ</h2>
+                {isApiConfigured() && !addressBookLoading && addressBookError == null && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {addressBook.length === 0
+                      ? 'Chưa có địa chỉ lưu trên tài khoản'
+                      : `${addressBook.length} địa chỉ đã lưu`}
+                  </p>
+                )}
               </div>
-              <p className="text-slate-600 dark:text-slate-400 font-medium">Bạn chưa có địa chỉ nào được tạo</p>
-              <p className="text-sm text-slate-500 mt-1 mb-6">Thêm địa chỉ để giao hàng nhanh hơn</p>
-              <Link
-                to="/account/addresses"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-colors"
-              >
-                <span className="material-icons">add</span>
-                Thêm địa chỉ
-              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                {isApiConfigured() && (
+                  <button
+                    type="button"
+                    onClick={() => void refreshAddressBook()}
+                    disabled={addressBookLoading}
+                    className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 px-3 py-2 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    <span className="material-icons text-lg">refresh</span>
+                    Làm mới
+                  </button>
+                )}
+                <Link
+                  to="/account/addresses"
+                  className="flex items-center gap-2 text-primary text-sm font-bold hover:bg-primary/10 px-4 py-2 rounded-xl transition-colors"
+                >
+                  <span className="material-icons text-lg">add</span>
+                  Thêm / Quản lý
+                </Link>
+              </div>
             </div>
+
+            {!isApiConfigured() && (
+              <div className="p-8 text-sm text-slate-500 dark:text-slate-400">
+                Bật cấu hình API để đồng bộ địa chỉ với máy chủ. Bạn vẫn có thể{' '}
+                <Link to="/account/addresses" className="text-primary font-semibold hover:underline">
+                  mở trang sổ địa chỉ
+                </Link>
+                .
+              </div>
+            )}
+
+            {isApiConfigured() && addressBookError && (
+              <div className="mx-6 mt-4 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                <span>{addressBookError}</span>
+                <button
+                  type="button"
+                  onClick={() => void refreshAddressBook()}
+                  className="self-start rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                >
+                  Thử lại
+                </button>
+              </div>
+            )}
+
+            {isApiConfigured() && addressBookLoading && (
+              <div className="p-10 text-center text-slate-500 text-sm">Đang tải địa chỉ…</div>
+            )}
+
+            {isApiConfigured() && !addressBookLoading && !addressBookError && addressBook.length === 0 && (
+              <div className="p-12 flex flex-col items-center justify-center text-center">
+                <div className="w-32 h-32 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-6">
+                  <span className="material-icons text-6xl text-slate-400 dark:text-slate-500">location_off</span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 font-medium">Bạn chưa có địa chỉ nào được tạo</p>
+                <p className="text-sm text-slate-500 mt-1 mb-6">Thêm địa chỉ để giao hàng nhanh hơn</p>
+                <Link
+                  to="/account/addresses"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-colors"
+                >
+                  <span className="material-icons">add</span>
+                  Thêm địa chỉ
+                </Link>
+              </div>
+            )}
+
+            {isApiConfigured() && !addressBookLoading && !addressBookError && addressBook.length > 0 && (
+              <div className="p-6 space-y-4">
+                <ul className="space-y-3">
+                  {addressBook.slice(0, 3).map((addr) => (
+                    <li
+                      key={addr.id}
+                      className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900 dark:text-white truncate">{addr.name}</p>
+                          <p className="text-sm text-slate-500">{addr.phone}</p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
+                            {addr.addressLines.join(', ')}
+                          </p>
+                        </div>
+                        {addr.isDefault && (
+                          <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded-full">
+                            Mặc định
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {addressBook.length > 3 && (
+                  <p className="text-xs text-slate-500 text-center">
+                    Và {addressBook.length - 3} địa chỉ khác —{' '}
+                    <Link to="/account/addresses" className="text-primary font-semibold hover:underline">
+                      xem tất cả
+                    </Link>
+                  </p>
+                )}
+                <div className="pt-2 text-center">
+                  <Link
+                    to="/account/addresses"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                  >
+                    Quản lý sổ địa chỉ
+                    <span className="material-icons text-base">chevron_right</span>
+                  </Link>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* 3. Mật khẩu */}

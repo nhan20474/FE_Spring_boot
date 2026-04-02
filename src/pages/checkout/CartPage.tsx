@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { formatVND, productDetailPath } from '@/utils';
+import { formatVND, productDetailPath, shippingCostForNetMerchandiseVnd } from '@/utils';
 import { checkoutQuote } from '@/services/backend';
 import { getToken, isApiConfigured } from '@/services/api';
 
@@ -56,7 +56,6 @@ const CartPage: React.FC = () => {
       try {
         const q = await checkoutQuote({
           items: normalizedItems,
-          shippingCost: 0,
           couponCode: couponCode.trim() || undefined,
         });
         setQuote({
@@ -86,8 +85,10 @@ const CartPage: React.FC = () => {
 
   const displaySubtotal = quote?.subtotal ?? localSubtotal;
   const displayDiscount = quote?.discountAmount ?? 0;
-  const displayShipping = quote?.shippingCost ?? 0;
-  const displayTotal = quote?.totalPrice ?? localSubtotal;
+  const displayNet = Math.max(0, displaySubtotal - displayDiscount);
+  const displayShipping = quote?.shippingCost ?? shippingCostForNetMerchandiseVnd(displayNet);
+  const displayTotal =
+    quote?.totalPrice ?? Math.max(0, displaySubtotal - displayDiscount + displayShipping);
 
   const handleSaveForLater = (item: (typeof items)[0]) => {
     addWishlist({
