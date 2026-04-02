@@ -19,6 +19,7 @@ import type {
   AuthRequest,
   RegisterRequest,
   AuthResponse,
+  AuthUserDto,
   CreateOrderRequest,
   AdminOrderDto,
   AdminOrdersResponse,
@@ -31,6 +32,12 @@ import type {
   AddressDto,
   ShipmentDto,
   ReturnRequestDto,
+  AdminDashboardSummaryDto,
+  CouponDto,
+  CreateCouponRequestBody,
+  AdminUsersResponse,
+  AdminUserDto,
+  WishlistItemDto,
 } from '@/types/api';
 import type { CartItem } from '@/types';
 
@@ -130,7 +137,10 @@ function mapCartDto(dto: CartDto): CartItem[] {
     id: String(item.id),
     productId: String(item.productId),
     name: item.productName ?? '',
-    variant: item.variant || item.selectedColor || item.selectedStorage || undefined,
+    variant:
+      (item.variant && String(item.variant).trim()) ||
+      [item.selectedColor, item.selectedStorage].filter((x) => x && String(x).trim()).join(' · ') ||
+      undefined,
     price: Number(item.priceAtAdd ?? 0),
     quantity: item.quantity ?? 1,
     image: item.productImage ?? '',
@@ -140,6 +150,121 @@ function mapCartDto(dto: CartDto): CartItem[] {
 /** GET /api/health */
 export async function health(): Promise<{ status: string }> {
   return apiGet<{ status: string }>('/health', { auth: false });
+}
+
+/** GET /api/auth/me — current user from JWT */
+export async function fetchAuthMe(): Promise<AuthUserDto> {
+  return apiGet<AuthUserDto>('/auth/me', { auth: true });
+}
+
+/** POST /api/auth/forgot-password */
+export async function forgotPassword(email: string): Promise<{
+  message: string;
+  accepted: boolean;
+  resetToken?: string;
+  expiresInSeconds?: number;
+}> {
+  return apiPost('/auth/forgot-password', { email }, { auth: false });
+}
+
+/** POST /api/auth/reset-password */
+export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  return apiPost<{ message: string }>('/auth/reset-password', { token, newPassword }, { auth: false });
+}
+
+/** GET /api/admin/dashboard/summary */
+export async function adminGetDashboardSummary(recentLimit = 10): Promise<AdminDashboardSummaryDto> {
+  const raw = await apiGet<{
+    revenue?: unknown;
+    ordersByStatus?: Record<string, number>;
+    recentOrders?: Array<{
+      id: number;
+      totalPrice?: unknown;
+      status?: string | null;
+      createdAt: string;
+      customerName?: string | null;
+    }>;
+  }>(`/admin/dashboard/summary?recentLimit=${recentLimit}`, { auth: true });
+  const rev = raw.revenue;
+  const revenue = typeof rev === 'number' ? rev : Number(rev ?? 0);
+  return {
+    revenue: Number.isFinite(revenue) ? revenue : 0,
+    ordersByStatus: raw.ordersByStatus ?? {},
+    recentOrders: Array.isArray(raw.recentOrders)
+      ? raw.recentOrders.map((r) => ({
+          id: r.id,
+          totalPrice: typeof r.totalPrice === 'number' ? r.totalPrice : Number(r.totalPrice ?? 0),
+          status: r.status ?? null,
+          createdAt: r.createdAt,
+          customerName: r.customerName ?? null,
+        }))
+      : [],
+  };
+}
+
+/** GET /api/wishlist */
+export async function getWishlist(): Promise<WishlistItemDto[]> {
+  return apiGet<WishlistItemDto[]>('/wishlist', { auth: true });
+}
+
+/** POST /api/wishlist/items */
+export async function addWishlistItemApi(productId: number): Promise<WishlistItemDto[]> {
+  return apiPost<WishlistItemDto[]>('/wishlist/items', { productId }, { auth: true });
+}
+
+/** DELETE /api/wishlist/items/{productId} */
+export async function removeWishlistItemApi(productId: number): Promise<WishlistItemDto[]> {
+  return apiDelete<WishlistItemDto[]>(`/wishlist/items/${productId}`, { auth: true });
+}
+
+/** GET /api/admin/coupons */
+export async function adminListCoupons(): Promise<CouponDto[]> {
+  return apiGet<CouponDto[]>('/admin/coupons', { auth: true });
+}
+
+/** POST /api/admin/coupons */
+export async function adminCreateCoupon(body: CreateCouponRequestBody): Promise<CouponDto> {
+  return apiPost<CouponDto>('/admin/coupons', body, { auth: true });
+}
+
+/** PATCH /api/admin/coupons/{id} */
+export async function adminUpdateCoupon(id: number | string, body: Partial<CreateCouponRequestBody>): Promise<CouponDto> {
+  return apiPatch<CouponDto>(`/admin/coupons/${id}`, body, { auth: true });
+}
+
+/** PATCH /api/admin/coupons/{id}/deactivate */
+export async function adminDeactivateCoupon(id: number | string): Promise<{ message: string }> {
+  return apiPatch<{ message: string }>(`/admin/coupons/${id}/deactivate`, {}, { auth: true });
+}
+
+/** GET /api/admin/users */
+export async function adminGetUsers(params?: {
+  role?: string;
+  q?: string;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
+}): Promise<AdminUsersResponse> {
+  const sp = new URLSearchParams();
+  if (params?.role) sp.set('role', params.role);
+  if (params?.q) sp.set('q', params.q);
+  if (params?.page != null) sp.set('page', String(params.page));
+  if (params?.size != null) sp.set('size', String(params.size));
+  if (params?.sortBy) sp.set('sortBy', params.sortBy);
+  if (params?.sortDir) sp.set('sortDir', params.sortDir);
+  const query = sp.toString();
+  return apiGet<AdminUsersResponse>(query ? `/admin/users?${query}` : '/admin/users', { auth: true });
+}
+
+/** PUT /api/admin/users/{id}/role */
+export async function adminUpdateUserRole(userId: number | string, role: 'admin' | 'customer'): Promise<AdminUserDto> {
+  return apiPut<AdminUserDto>(`/admin/users/${userId}/role`, { role }, { auth: true });
+}
+
+/** DELETE /api/admin/users/{id} */
+export async function adminDeleteUser(userId: number | string): Promise<void> {
+  return apiDelete<void>(`/admin/users/${userId}`, { auth: true });
 }
 
 /** GET /api/categories */

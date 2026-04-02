@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { orderConfirmationSample } from '@/data';
 import { formatVND } from '@/utils';
 import { isApiConfigured } from '@/services/api';
@@ -21,7 +21,11 @@ function paymentMethodToBrand(method?: string | null): { brand: string; last4: s
 
 const OrderConfirmationPage: React.FC = () => {
   const location = useLocation();
+  const { orderId: orderIdFromPath } = useParams<{ orderId?: string }>();
   const state = location.state as { orderId?: number; fromApi?: boolean } | null;
+  const orderIdFromUrl =
+    state?.orderId ??
+    (orderIdFromPath && /^\d+$/.test(orderIdFromPath) ? Number(orderIdFromPath) : undefined);
   const { isAuthenticated } = useAuth();
 
   const [apiOrder, setApiOrder] = useState<OrderDto | null>(null);
@@ -34,8 +38,8 @@ const OrderConfirmationPage: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    const orderId = state?.orderId;
-    const fromApi = state?.fromApi;
+    const orderId = orderIdFromUrl;
+    const fromApi = state?.fromApi ?? Boolean(orderIdFromPath && orderId);
     if (!orderId || !fromApi) return;
     if (!isApiConfigured() || !isAuthenticated) return;
 
@@ -77,7 +81,7 @@ const OrderConfirmationPage: React.FC = () => {
         setApiOrder(null);
         setApiShipping(null);
       });
-  }, [state?.orderId, state?.fromApi, isAuthenticated]);
+  }, [orderIdFromUrl, state?.fromApi, orderIdFromPath, isAuthenticated]);
 
   const order = orderConfirmationSample;
   const { delivery } = order;

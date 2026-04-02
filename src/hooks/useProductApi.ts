@@ -73,6 +73,8 @@ export interface UseApiProductsParams {
   q?: string;
   page?: number;
   size?: number;
+  /** Khi false: không gọi API (ví dụ chờ resolve slug danh mục). */
+  enabled?: boolean;
 }
 
 export function useApiProducts(params: UseApiProductsParams = {}): {
@@ -84,10 +86,11 @@ export function useApiProducts(params: UseApiProductsParams = {}): {
   const [data, setData] = useState<ListingProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { category, q, page = 0, size = 100 } = params;
+  const { category, q, page = 0, size = 100, enabled = true } = params;
 
   const fetchData = useCallback(async () => {
     if (!isApiConfigured()) return;
+    if (enabled === false) return;
     setLoading(true);
     setError(null);
     try {
@@ -99,7 +102,7 @@ export function useApiProducts(params: UseApiProductsParams = {}): {
     } finally {
       setLoading(false);
     }
-  }, [category, q, page, size]);
+  }, [category, q, page, size, enabled]);
 
   useEffect(() => {
     fetchData();
@@ -116,13 +119,17 @@ export function useApiProductsBySlug(categorySlug: string): {
   const { data: categories, loading: catsLoading } = useApiCategories();
   const cat = categories.find((c) => c.slug === categorySlug);
   const categoryId = cat ? Number(cat.id) : undefined;
+  const enabled = !catsLoading && categoryId != null;
   const { data: products, loading: productsLoading } = useApiProducts(
-    categoryId != null ? { category: categoryId } : {}
+    categoryId != null ? { category: categoryId, enabled } : { enabled: false }
   );
   return { data: products, loading: catsLoading || productsLoading };
 }
 
-export function useApiProduct(id: string | undefined): {
+/**
+ * segment: slug từ URL hoặc id số (legacy). Số thuần → GET /products/{id}; còn lại → GET /products/slug/{slug}.
+ */
+export function useApiProduct(segment: string | undefined): {
   data: Product | null;
   loading: boolean;
   error: string | null;
@@ -133,11 +140,12 @@ export function useApiProduct(id: string | undefined): {
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!isApiConfigured() || !id) return;
+    if (!isApiConfigured() || !segment) return;
     setLoading(true);
     setError(null);
     try {
-      const dto = await backend.getProduct(id);
+      const isNumericId = /^\d+$/.test(segment);
+      const dto = isNumericId ? await backend.getProduct(segment) : await backend.getProductBySlug(segment);
       setData(mapProductDtoToProduct(dto));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load product');
@@ -145,7 +153,7 @@ export function useApiProduct(id: string | undefined): {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [segment]);
 
   useEffect(() => {
     fetchData();

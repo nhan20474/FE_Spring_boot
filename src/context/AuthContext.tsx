@@ -30,6 +30,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(stored);
     }
     setIsInitialized(true);
+    if (token) {
+      void backend
+        .fetchAuthMe()
+        .then((u) => {
+          setUser(u);
+          setStoredUser(u);
+        })
+        .catch(() => {
+          clearToken();
+          setUser(null);
+        });
+    }
   }, []);
 
   const login = useCallback(async (body: AuthRequest): Promise<AuthResponse> => {

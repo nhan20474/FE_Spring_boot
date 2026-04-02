@@ -1,5 +1,7 @@
 export interface Product {
   id: string;
+  /** Slug từ API — dùng cho URL /product/:slug */
+  slug?: string;
   name: string;
   category: string;
   price: number;
@@ -121,19 +123,6 @@ export interface OrderDetailsData {
   };
 }
 
-export interface WarrantyItem {
-  id: string;
-  productName: string;
-  serial: string;
-  status: 'active' | 'expired';
-  purchaseDate: string;
-  expiryDate: string;
-  planType: string;
-  icon: string;
-  expiryVariant?: 'default' | 'amber' | 'red';
-  planHighlight?: boolean;
-}
-
 export interface SavedAddress {
   id: string;
   label: string;
@@ -174,6 +163,8 @@ export interface Category {
   name: string;
   icon: string;
   slug: string;
+  /** null = danh mục gốc; khớp `id` danh mục cha khi có phân cấp */
+  parentId?: string | null;
 }
 
 export interface CartItem {
@@ -198,6 +189,7 @@ export interface Banner {
 
 export interface TrendingProduct {
   id: string;
+  slug?: string;
   name: string;
   category: string;
   image: string;
@@ -216,6 +208,7 @@ export interface FooterLink {
 
 export interface ListingProduct {
   id: string;
+  slug?: string;
   name: string;
   price: number;
   oldPrice?: number;

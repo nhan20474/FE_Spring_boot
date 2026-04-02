@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import AdminProductsTabs from '@/components/admin/AdminProductsTabs';
 import ProductStockTable from './components/ProductStockTable';
+import InventoryAdjustModal from './components/InventoryAdjustModal';
 import type { StockProduct } from './productStockMock';
 import * as backend from '@/services/backend';
 
@@ -13,6 +15,7 @@ const ProductStockPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [inventoryProduct, setInventoryProduct] = useState<StockProduct | null>(null);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -121,14 +124,13 @@ const ProductStockPage: React.FC = () => {
               className="w-full pl-10 pr-4 py-2.5 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => window.alert('Trang tồn kho hiện chỉ hỗ trợ cập nhật số lượng cho sản phẩm hiện có.')}
+          <Link
+            to="/admin/products/new"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-white px-4 py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors shrink-0"
           >
             <span className="material-icons text-[18px]">add</span>
             Thêm sản phẩm
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -145,7 +147,12 @@ const ProductStockPage: React.FC = () => {
           {loading ? (
             <div className="py-10 text-center text-slate-500 text-sm font-semibold">Đang tải tồn kho...</div>
           ) : (
-            <ProductStockTable rows={pageRows} onEdit={openEdit} onDelete={handleDelete} />
+            <ProductStockTable
+              rows={pageRows}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+              onInventoryDetail={(p) => setInventoryProduct(p)}
+            />
           )}
         </div>
 
@@ -177,6 +184,13 @@ const ProductStockPage: React.FC = () => {
           </div>
         </div>
       </section>
+
+      <InventoryAdjustModal
+        open={inventoryProduct != null}
+        product={inventoryProduct}
+        onClose={() => setInventoryProduct(null)}
+        onApplied={() => void fetchProducts()}
+      />
     </div>
   );
 };

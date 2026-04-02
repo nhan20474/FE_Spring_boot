@@ -31,8 +31,8 @@ const DEFAULT_IPAD_COLORS = [
 const DEFAULT_IPAD_STORAGE = ['256GB', '512GB', '1TB'];
 
 const ProductDetail: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const { data: product, loading: apiLoading } = useApiProduct(id);
+  const { slug: segment } = useParams<{ slug: string }>();
+  const { data: product, loading: apiLoading } = useApiProduct(segment);
   const extras = null;
 
   const { addItem } = useCart();

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useCheckout } from '@/context/CheckoutContext';
 import { getToken } from '@/services/api';
-import { getAddresses, createAddress } from '@/services/backend';
+import { getAddresses, createAddress, getProfile } from '@/services/backend';
 import { addressDtoToSaved } from '@/services/addressMapper';
 import type { SavedAddress } from '@/types';
 import AddressCard from './AddressCard';
@@ -48,14 +48,26 @@ const CheckoutStep1: React.FC<CheckoutStep1Props> = ({ onNext, onBack }) => {
         return;
       }
       try {
-        const list = await getAddresses();
+        const [list, profile] = await Promise.all([
+          getAddresses(),
+          getProfile().catch(() => null),
+        ]);
         if (cancelled) return;
-        const mapped = list.map(addressDtoToSaved);
-        setAddresses(mapped);
+        let merged = list.map(addressDtoToSaved);
+        if (profile?.defaultAddress) {
+          const da = addressDtoToSaved(profile.defaultAddress);
+          if (!merged.some((a) => a.id === da.id)) {
+            merged = [da, ...merged];
+          }
+        }
+        setAddresses(merged);
         const preferred =
-          mapped.find((a) => a.id === checkoutData.selectedAddress?.id) ??
-          mapped.find((a) => a.isDefault) ??
-          mapped[0];
+          merged.find((a) => a.id === checkoutData.selectedAddress?.id) ??
+          (profile?.defaultAddress?.id != null
+            ? merged.find((a) => a.id === String(profile.defaultAddress.id))
+            : undefined) ??
+          merged.find((a) => a.isDefault) ??
+          merged[0];
         if (preferred) {
           setSelectedAddressId(preferred.id);
           updateCheckoutData({ selectedAddress: preferred });

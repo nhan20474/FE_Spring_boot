@@ -121,7 +121,7 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
         });
         // Payment simulate thành công => xóa giỏ
         clearCart();
-        navigate('/order-confirmation', { state: { orderId: order.id, fromApi: true } });
+        navigate(`/order-confirmation/${order.id}`, { state: { orderId: order.id, fromApi: true } });
       } catch (err) {
         setOrderError(err instanceof ApiError ? err.message : 'Failed to create order.');
         if (err instanceof ApiError && err.status === 401) {
