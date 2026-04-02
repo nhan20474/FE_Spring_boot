@@ -693,6 +693,12 @@ export async function removeCartItem(cartItemId: string): Promise<CartItem[]> {
   return mapCartDto(dto);
 }
 
+/** DELETE /api/cart/items — xóa toàn bộ giỏ (server) */
+export async function clearCartAll(): Promise<CartItem[]> {
+  const dto = await apiDelete<CartDto>('/cart/items', { auth: true });
+  return mapCartDto(dto);
+}
+
 // ——— Profile & Password (requires auth) ———
 
 /** GET /api/profile */
