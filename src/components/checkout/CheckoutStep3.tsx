@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCheckout } from '@/context/CheckoutContext';
 import { useAuth } from '@/context/AuthContext';
-import { createOrder, createVnpayPayment } from '@/services/backend';
+import { createOrder, createMomoPayment, createVnpayPayment } from '@/services/backend';
 import { isApiConfigured } from '@/services/api';
 import { ApiError } from '@/services/api';
 import { useCart } from '@/context/CartContext';
@@ -131,6 +131,12 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
           return;
         }
 
+        if (paymentMethod === 'momo') {
+          const { paymentUrl } = await createMomoPayment(order.id);
+          window.location.assign(paymentUrl);
+          return;
+        }
+
         navigate(`/order-confirmation/${order.id}`, { state: { orderId: order.id, fromApi: true } });
       } catch (err) {
         setOrderError(err instanceof ApiError ? err.message : 'Failed to create order.');
@@ -161,6 +167,18 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
           <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-8 text-center">
             <p className="text-slate-600 dark:text-slate-400 mb-2">
               Sau khi bấm Đặt hàng, bạn sẽ được chuyển tới cổng thanh toán VNPay (sandbox hoặc production tùy cấu hình
+              server).
+            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-500">
+              Đơn được tạo ở trạng thái chờ thanh toán cho đến khi giao dịch thành công.
+            </p>
+          </div>
+        )}
+
+        {paymentMethod === 'momo' && (
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-8 text-center">
+            <p className="text-slate-600 dark:text-slate-400 mb-2">
+              Sau khi bấm Đặt hàng, bạn sẽ được chuyển tới cổng thanh toán MoMo (sandbox hoặc production tùy cấu hình
               server).
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-500">

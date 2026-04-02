@@ -2,14 +2,20 @@ import React, { createContext, useCallback, useContext, useMemo, useState, React
 import type { SavedAddress, CartItem } from '@/types';
 
 export interface PaymentMethod {
-  type: 'credit_card' | 'paypal' | 'paypal_credit' | 'cash_on_delivery';
+  type: 'credit_card' | 'paypal' | 'paypal_credit' | 'cash_on_delivery' | 'vnpay' | 'momo';
   cardNumber?: string;
   cardHolder?: string;
   expiryDate?: string;
   cvv?: string;
 }
 
-export type PaymentMethodType = 'credit_card' | 'paypal' | 'paypal_credit' | 'cash_on_delivery';
+export type PaymentMethodType =
+  | 'credit_card'
+  | 'paypal'
+  | 'paypal_credit'
+  | 'cash_on_delivery'
+  | 'vnpay'
+  | 'momo';
 
 export interface CheckoutData {
   // Step 1: Shipping Address

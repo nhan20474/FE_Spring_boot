@@ -42,6 +42,7 @@ function paymentMethodToBrand(method?: string | null): { brand: string; last4: s
   if (m === 'paypal_credit') return { brand: 'PayPal Credit', last4: '—', expires: '—' };
   if (m === 'cash_on_delivery') return { brand: 'Thanh toán khi nhận hàng', last4: '—', expires: '—' };
   if (m === 'vnpay') return { brand: 'VNPay', last4: '—', expires: '—' };
+  if (m === 'momo') return { brand: 'MoMo', last4: '—', expires: '—' };
   return { brand: method, last4: '—', expires: '—' };
 }
 

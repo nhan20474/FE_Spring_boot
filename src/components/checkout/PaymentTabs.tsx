@@ -5,7 +5,8 @@ export type PaymentMethodType =
   | 'paypal'
   | 'paypal_credit'
   | 'cash_on_delivery'
-  | 'vnpay';
+  | 'vnpay'
+  | 'momo';
 
 interface PaymentTabsProps {
   selectedMethod: PaymentMethodType;
@@ -16,6 +17,7 @@ const PaymentTabs: React.FC<PaymentTabsProps> = ({ selectedMethod, onSelectMetho
   const tabs = [
     { id: 'credit_card' as PaymentMethodType, label: 'Credit Card' },
     { id: 'vnpay' as PaymentMethodType, label: 'VNPay' },
+    { id: 'momo' as PaymentMethodType, label: 'MoMo' },
     { id: 'paypal' as PaymentMethodType, label: 'PayPal' },
     { id: 'paypal_credit' as PaymentMethodType, label: 'PayPal Credit' },
     { id: 'cash_on_delivery' as PaymentMethodType, label: 'Cash on Delivery' },
