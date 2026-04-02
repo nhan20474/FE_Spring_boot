@@ -6,6 +6,7 @@ import { createOrder } from '@/services/backend';
 import { isApiConfigured } from '@/services/api';
 import { ApiError } from '@/services/api';
 import { useCart } from '@/context/CartContext';
+import { shippingCostForNetMerchandiseVnd } from '@/utils';
 import PaymentTabs, { type PaymentMethodType } from './PaymentTabs';
 import CreditCardForm from './CreditCardForm';
 import CheckoutSummary from './CheckoutSummary';
@@ -83,8 +84,11 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
     const fallbackSubtotal = normalizedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const subtotal = checkoutData.quoteSubtotal ?? fallbackSubtotal;
     const discountAmount = checkoutData.quoteDiscountAmount ?? 0;
-    const shippingCost = checkoutData.quoteShippingCost ?? checkoutData.shippingMethod?.price ?? 0;
-    const totalPrice = checkoutData.quoteTotalPrice ?? Math.max(0, subtotal - discountAmount + shippingCost);
+    const netAfterDiscount = Math.max(0, subtotal - discountAmount);
+    const shippingCost =
+      checkoutData.quoteShippingCost ?? shippingCostForNetMerchandiseVnd(netAfterDiscount);
+    const totalPrice =
+      checkoutData.quoteTotalPrice ?? Math.max(0, subtotal - discountAmount + shippingCost);
 
     if (useBackend) {
       const { selectedAddress } = checkoutData;

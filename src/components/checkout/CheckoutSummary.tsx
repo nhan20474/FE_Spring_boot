@@ -1,22 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useCheckout } from '@/context/CheckoutContext';
-import { formatVND } from '@/utils';
+import { formatVND, shippingCostForNetMerchandiseVnd } from '@/utils';
 import { getToken, isApiConfigured } from '@/services/api';
 import { checkoutQuote } from '@/services/backend';
 
 const CheckoutSummary: React.FC = () => {
   const { checkoutData, updateCheckoutData } = useCheckout();
-  const { items, shippingMethod } = checkoutData;
+  const { items } = checkoutData;
   const [couponInput, setCouponInput] = useState(checkoutData.couponCode ?? '');
   const [quoting, setQuoting] = useState(false);
 
   const localSubtotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items]);
-  const localShipping = shippingMethod?.price || 0;
 
   const subtotal = checkoutData.quoteSubtotal ?? localSubtotal;
-  const shipping = checkoutData.quoteShippingCost ?? localShipping;
   const discount = checkoutData.quoteDiscountAmount ?? 0;
-  const total = checkoutData.quoteTotalPrice ?? Math.max(0, localSubtotal - discount + localShipping);
+  const netAfterDiscount = Math.max(0, subtotal - discount);
+  const shippingFallback = shippingCostForNetMerchandiseVnd(netAfterDiscount);
+  const shipping = checkoutData.quoteShippingCost ?? shippingFallback;
+  const total = checkoutData.quoteTotalPrice ?? Math.max(0, subtotal - discount + shippingFallback);
 
   const normalizedItems = useMemo(
     () =>
@@ -34,11 +35,12 @@ const CheckoutSummary: React.FC = () => {
 
   const refreshQuote = async (couponCode?: string) => {
     if (!isApiConfigured() || !getToken() || normalizedItems.length === 0) {
+      const ship = shippingCostForNetMerchandiseVnd(localSubtotal);
       updateCheckoutData({
         quoteSubtotal: localSubtotal,
         quoteDiscountAmount: 0,
-        quoteShippingCost: localShipping,
-        quoteTotalPrice: localSubtotal + localShipping,
+        quoteShippingCost: ship,
+        quoteTotalPrice: Math.max(0, localSubtotal + ship),
         quoteCouponApplied: false,
         quoteCouponMessage: '',
       });
@@ -48,13 +50,12 @@ const CheckoutSummary: React.FC = () => {
     try {
       const q = await checkoutQuote({
         items: normalizedItems,
-        shippingCost: localShipping,
         couponCode: (couponCode ?? checkoutData.couponCode) || undefined,
       });
       updateCheckoutData({
         quoteSubtotal: Number(q.subtotal ?? 0),
         quoteDiscountAmount: Number(q.discountAmount ?? 0),
-        quoteShippingCost: Number(q.shippingCost ?? localShipping),
+        quoteShippingCost: Number(q.shippingCost ?? shippingCostForNetMerchandiseVnd(localSubtotal)),
         quoteTotalPrice: Number(q.totalPrice ?? 0),
         couponCode: q.couponCode ?? (couponCode ?? checkoutData.couponCode),
         quoteCouponApplied: Boolean(q.couponApplied),
@@ -68,7 +69,7 @@ const CheckoutSummary: React.FC = () => {
   useEffect(() => {
     void refreshQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localShipping, localSubtotal, quoteItemsKey]);
+  }, [localSubtotal, quoteItemsKey]);
 
   const applyCoupon = async () => {
     const code = couponInput.trim();
@@ -115,11 +116,11 @@ const CheckoutSummary: React.FC = () => {
       </div>
 
       {/* Shipment Info */}
-      {checkoutData.selectedAddress && checkoutData.shippingMethod && (
+      {checkoutData.selectedAddress && (
         <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800">
-            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
-              Thông tin vận chuyển
-            </h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
+            Thông tin giao hàng
+          </h4>
           <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
             <div>
               <span className="font-medium">Địa chỉ:</span>
@@ -132,10 +133,9 @@ const CheckoutSummary: React.FC = () => {
                 )}
               </p>
             </div>
-            <div>
-              <span className="font-medium">Vận chuyển:</span>
-              <p className="mt-1">{checkoutData.shippingMethod.name}</p>
-            </div>
+            <p className="text-xs text-slate-500">
+              Giao hàng tiêu chuẩn — miễn phí vận chuyển đơn từ 500.000đ (sau giảm giá).
+            </p>
           </div>
         </div>
       )}
