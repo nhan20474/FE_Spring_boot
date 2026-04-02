@@ -158,13 +158,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [removeItem]);
 
   const clearCart = useCallback(() => {
-    setItems([]);
-    try {
-      localStorage.removeItem(CART_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    // Không gọi backend ở đây để tránh phụ thuộc endpoint; chỉ xóa UI/local trước.
+    const run = async () => {
+      if (isApiConfigured() && getToken()) {
+        try {
+          const list = await backend.clearCartAll();
+          setItems(Array.isArray(list) ? list : []);
+        } catch {
+          setItems([]);
+        }
+      } else {
+        setItems([]);
+      }
+    };
+    void run();
   }, []);
 
   const safeItems = Array.isArray(items) ? items : [];

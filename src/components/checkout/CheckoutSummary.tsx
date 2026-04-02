@@ -186,6 +186,9 @@ const CheckoutSummary: React.FC = () => {
           <span className="text-lg font-bold text-slate-900 dark:text-white">Tổng</span>
           <span className="text-2xl font-black text-primary">{formatVND(total)}</span>
         </div>
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+          Giá đã bao gồm thuế GTGT (VAT) theo quy định.
+        </p>
       </div>
     </div>
   );
