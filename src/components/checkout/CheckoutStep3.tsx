@@ -80,7 +80,11 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
       quantity: Number(i.quantity),
       price: Number(i.price),
     }));
-    const totalPrice = normalizedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const fallbackSubtotal = normalizedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const subtotal = checkoutData.quoteSubtotal ?? fallbackSubtotal;
+    const discountAmount = checkoutData.quoteDiscountAmount ?? 0;
+    const shippingCost = checkoutData.quoteShippingCost ?? checkoutData.shippingMethod?.price ?? 0;
+    const totalPrice = checkoutData.quoteTotalPrice ?? Math.max(0, subtotal - discountAmount + shippingCost);
 
     if (useBackend) {
       const { selectedAddress } = checkoutData;
@@ -110,9 +114,9 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
           totalPrice,
           paymentMethod,
           shippingAddressId: shippingAddressId ?? null,
-          subtotal: totalPrice,
-          discountAmount: 0,
-          shippingCost: checkoutData.shippingMethod?.price ?? 0,
+          subtotal,
+          discountAmount,
+          shippingCost,
           items: normalizedItems,
         });
         // Payment simulate thành công => xóa giỏ

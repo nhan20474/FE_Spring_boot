@@ -1,16 +1,80 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useCheckout } from '@/context/CheckoutContext';
 import { formatVND } from '@/utils';
+import { getToken, isApiConfigured } from '@/services/api';
+import { checkoutQuote } from '@/services/backend';
 
 const CheckoutSummary: React.FC = () => {
-  const { checkoutData } = useCheckout();
+  const { checkoutData, updateCheckoutData } = useCheckout();
   const { items, shippingMethod } = checkoutData;
+  const [couponInput, setCouponInput] = useState(checkoutData.couponCode ?? '');
+  const [quoting, setQuoting] = useState(false);
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shipping = shippingMethod?.price || 0;
-  const taxRate = 0.08;
-  const tax = subtotal * taxRate;
-  const total = subtotal + shipping + tax;
+  const localSubtotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items]);
+  const localShipping = shippingMethod?.price || 0;
+
+  const subtotal = checkoutData.quoteSubtotal ?? localSubtotal;
+  const shipping = checkoutData.quoteShippingCost ?? localShipping;
+  const discount = checkoutData.quoteDiscountAmount ?? 0;
+  const total = checkoutData.quoteTotalPrice ?? Math.max(0, localSubtotal - discount + localShipping);
+
+  const normalizedItems = useMemo(
+    () =>
+      items.map((i) => ({
+        productId: Number(i.productId),
+        quantity: Number(i.quantity),
+        price: Number(i.price),
+      })),
+    [items]
+  );
+  const quoteItemsKey = useMemo(
+    () => normalizedItems.map((i) => `${i.productId}:${i.quantity}:${i.price}`).join('|'),
+    [normalizedItems]
+  );
+
+  const refreshQuote = async (couponCode?: string) => {
+    if (!isApiConfigured() || !getToken() || normalizedItems.length === 0) {
+      updateCheckoutData({
+        quoteSubtotal: localSubtotal,
+        quoteDiscountAmount: 0,
+        quoteShippingCost: localShipping,
+        quoteTotalPrice: localSubtotal + localShipping,
+        quoteCouponApplied: false,
+        quoteCouponMessage: '',
+      });
+      return;
+    }
+    setQuoting(true);
+    try {
+      const q = await checkoutQuote({
+        items: normalizedItems,
+        shippingCost: localShipping,
+        couponCode: (couponCode ?? checkoutData.couponCode) || undefined,
+      });
+      updateCheckoutData({
+        quoteSubtotal: Number(q.subtotal ?? 0),
+        quoteDiscountAmount: Number(q.discountAmount ?? 0),
+        quoteShippingCost: Number(q.shippingCost ?? localShipping),
+        quoteTotalPrice: Number(q.totalPrice ?? 0),
+        couponCode: q.couponCode ?? (couponCode ?? checkoutData.couponCode),
+        quoteCouponApplied: Boolean(q.couponApplied),
+        quoteCouponMessage: q.couponMessage ?? '',
+      });
+    } finally {
+      setQuoting(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshQuote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localShipping, localSubtotal, quoteItemsKey]);
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim();
+    updateCheckoutData({ couponCode: code });
+    await refreshQuote(code || undefined);
+  };
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 sticky top-24">
@@ -77,6 +141,30 @@ const CheckoutSummary: React.FC = () => {
       )}
 
       {/* Price Info */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-slate-500 mb-2">Mã giảm giá</label>
+        <div className="flex gap-2">
+          <input
+            value={couponInput}
+            onChange={(e) => setCouponInput(e.target.value)}
+            placeholder="Nhập coupon"
+            className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-slate-800"
+          />
+          <button
+            type="button"
+            onClick={() => void applyCoupon()}
+            disabled={quoting}
+            className="px-3 py-2 rounded-lg bg-primary text-white text-sm font-semibold disabled:opacity-60"
+          >
+            {quoting ? 'Đang áp...' : 'Áp dụng'}
+          </button>
+        </div>
+        {checkoutData.quoteCouponMessage && (
+          <p className={`mt-2 text-xs ${checkoutData.quoteCouponApplied ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {checkoutData.quoteCouponMessage}
+          </p>
+        )}
+      </div>
       <div className="space-y-3 text-sm">
         <div className="flex justify-between text-slate-600 dark:text-slate-400">
           <span>Tạm tính</span>
@@ -85,8 +173,8 @@ const CheckoutSummary: React.FC = () => {
           </span>
         </div>
         <div className="flex justify-between text-slate-600 dark:text-slate-400">
-          <span>Thuế ước tính</span>
-          <span className="font-semibold text-slate-900 dark:text-white">{formatVND(tax)}</span>
+          <span>Giảm giá</span>
+          <span className="font-semibold text-emerald-600">-{formatVND(discount)}</span>
         </div>
         <div className="flex justify-between text-slate-600 dark:text-slate-400">
           <span>Phí vận chuyển</span>

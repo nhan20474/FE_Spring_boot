@@ -25,16 +25,18 @@ const OrderDetailPage: React.FC = () => {
   const [updating, setUpdating] = useState(false);
 
   const statusOptionsForChanger: OrderStatus[] = useMemo(
-    () => ['Completed', 'Processing', 'Rejected', 'On Hold', 'In Transit', 'Shipping'],
+    () => ['Processing', 'Shipping', 'Completed', 'Rejected'],
     [],
   );
 
   const mapBackendStatusToAdminStatus = (statusRaw: string): OrderStatus => {
     const s = String(statusRaw ?? '').trim().toLowerCase();
     if (s === 'cancelled' || s === 'canceled' || s === 'reject') return 'Rejected';
-    if (s === 'paid') return 'Completed';
+    if (s === 'paid' || s === 'completed') return 'Completed';
     if (s === 'pending' || s === 'processing') return 'Processing';
-    if (s === 'shipped' || s === 'shipping' || s === 'delivered') return 'In Transit';
+    if (s === 'shipping') return 'Shipping';
+    if (s === 'shipped' || s === 'delivered') return 'In Transit';
+    if (s === 'returned' || s === 'refunded') return 'Rejected';
     return 'Processing';
   };
 
@@ -46,10 +48,8 @@ const OrderDetailPage: React.FC = () => {
         return 'pending';
       case 'Rejected':
         return 'cancelled';
-      case 'On Hold':
-        return 'pending';
       case 'In Transit':
-        return 'shipped';
+        return 'shipping';
       case 'Shipping':
         return 'shipping';
       default:

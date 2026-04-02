@@ -22,8 +22,11 @@ function statusToLabel(status: string): string {
     PENDING: 'Đang xử lý',
     PROCESSING: 'Đang xử lý',
     PAID: 'Đã thanh toán',
+    COMPLETED: 'Hoàn tất',
     SHIPPED: 'Đã giao',
     SHIPPING: 'Đang giao',
+    RETURNED: 'Đã trả hàng',
+    REFUNDED: 'Đã hoàn tiền',
     DELIVERED: 'Đã giao',
     CANCELLED: 'Đã hủy',
   };

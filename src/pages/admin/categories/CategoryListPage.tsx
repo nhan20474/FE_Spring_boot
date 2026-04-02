@@ -13,6 +13,8 @@ const EditableRow: React.FC<{
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(cat.name);
   const [description, setDescription] = useState(cat.description ?? '');
+  const [slug, setSlug] = useState(cat.slug ?? '');
+  const [parentId, setParentId] = useState(cat.parentId != null ? String(cat.parentId) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -20,6 +22,8 @@ const EditableRow: React.FC<{
   const startEdit = () => {
     setName(cat.name);
     setDescription(cat.description ?? '');
+    setSlug(cat.slug ?? '');
+    setParentId(cat.parentId != null ? String(cat.parentId) : '');
     setError(null);
     setEditing(true);
     setTimeout(() => nameRef.current?.focus(), 50);
@@ -32,9 +36,11 @@ const EditableRow: React.FC<{
     setSaving(true);
     setError(null);
     try {
-      const updated = await backend.adminUpdateCategory(cat.id, {
+      const updated = await backend.adminUpdateCategoryV2(cat.id, {
         name: name.trim(),
         description: description.trim() || undefined,
+        slug: slug.trim() || undefined,
+        parentId: parentId.trim() ? Number(parentId.trim()) : null,
       });
       onSaved(updated);
       setEditing(false);
@@ -65,6 +71,22 @@ const EditableRow: React.FC<{
             onChange={(e) => setDescription(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
             placeholder="Mô tả (tùy chọn)"
+            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <input
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder="slug (tùy chọn)"
+            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </td>
+        <td className="px-4 py-3">
+          <input
+            value={parentId}
+            onChange={(e) => setParentId(e.target.value)}
+            placeholder="parentId"
             className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </td>
@@ -101,6 +123,8 @@ const EditableRow: React.FC<{
       <td className="px-4 py-3 text-slate-500 text-sm">
         {cat.description || <span className="text-slate-300 italic">Chưa có mô tả</span>}
       </td>
+      <td className="px-4 py-3 text-slate-500 text-sm">{cat.slug || <span className="text-slate-300 italic">—</span>}</td>
+      <td className="px-4 py-3 text-slate-500 text-sm">{cat.parentId ?? <span className="text-slate-300 italic">—</span>}</td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
@@ -132,12 +156,14 @@ const AddCategoryForm: React.FC<{ onCreated: (cat: CategoryDto) => void }> = ({ 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [slug, setSlug] = useState('');
+  const [parentId, setParentId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
   const handleOpen = () => { setOpen(true); setTimeout(() => nameRef.current?.focus(), 50); };
-  const handleClose = () => { setOpen(false); setName(''); setDescription(''); setError(null); };
+  const handleClose = () => { setOpen(false); setName(''); setDescription(''); setSlug(''); setParentId(''); setError(null); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,9 +171,11 @@ const AddCategoryForm: React.FC<{ onCreated: (cat: CategoryDto) => void }> = ({ 
     setSaving(true);
     setError(null);
     try {
-      const cat = await backend.adminCreateCategory({
+      const cat = await backend.adminCreateCategoryV2({
         name: name.trim(),
         description: description.trim() || undefined,
+        slug: slug.trim() || undefined,
+        parentId: parentId.trim() ? Number(parentId.trim()) : null,
       });
       onCreated(cat);
       handleClose();
@@ -194,6 +222,24 @@ const AddCategoryForm: React.FC<{ onCreated: (cat: CategoryDto) => void }> = ({ 
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Mô tả ngắn (tùy chọn)"
+          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+        />
+      </div>
+      <div className="w-full sm:w-44">
+        <label className="block text-xs font-bold text-slate-600 mb-1">Slug</label>
+        <input
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+          placeholder="dien-thoai"
+          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+        />
+      </div>
+      <div className="w-full sm:w-36">
+        <label className="block text-xs font-bold text-slate-600 mb-1">Parent ID</label>
+        <input
+          value={parentId}
+          onChange={(e) => setParentId(e.target.value)}
+          placeholder="(để trống nếu root)"
           className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
         />
       </div>
@@ -297,6 +343,8 @@ const CategoryListPage: React.FC = () => {
               <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400 w-16">ID</th>
               <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Tên danh mục</th>
               <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Mô tả</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Slug</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Parent ID</th>
               <th className="px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-slate-400 w-40">Thao tác</th>
             </tr>
           </thead>
@@ -312,7 +360,7 @@ const CategoryListPage: React.FC = () => {
               ))
             ) : categories.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-16 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-16 text-center text-slate-400">
                   <span className="material-icons text-4xl block mb-2">category</span>
                   <p className="font-semibold">Chưa có danh mục nào</p>
                 </td>

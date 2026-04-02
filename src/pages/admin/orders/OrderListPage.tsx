@@ -21,9 +21,10 @@ const OrderListPage: React.FC = () => {
   const mapBackendStatusToAdminStatus = (statusRaw: string): OrderStatus => {
     const s = String(statusRaw ?? '').trim().toLowerCase();
     if (s === 'cancelled' || s === 'canceled' || s === 'reject') return 'Rejected';
-    if (s === 'paid') return 'Completed';
+    if (s === 'paid' || s === 'completed') return 'Completed';
     if (s === 'pending') return 'Processing';
-    if (s === 'shipped' || s === 'shipping' || s === 'delivered') return 'In Transit';
+    if (s === 'shipping' || s === 'shipped' || s === 'delivered') return 'In Transit';
+    if (s === 'returned' || s === 'refunded') return 'Rejected';
     return 'Processing';
   };
 
@@ -44,9 +45,9 @@ const OrderListPage: React.FC = () => {
     let cancelled = false;
     setLoading(true);
     adminGetOrders()
-      .then((list) => {
+      .then((res) => {
         if (cancelled) return;
-        setRows(list.map(mapOrderDtoToRow));
+        setRows((res.items ?? []).map(mapOrderDtoToRow));
       })
       .catch(() => {
         if (cancelled) return;

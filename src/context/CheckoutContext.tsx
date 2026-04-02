@@ -30,6 +30,12 @@ export interface CheckoutData {
   // Step 3: Payment
   paymentMethod: PaymentMethod | null;
   couponCode: string;
+  quoteSubtotal: number | null;
+  quoteDiscountAmount: number | null;
+  quoteShippingCost: number | null;
+  quoteTotalPrice: number | null;
+  quoteCouponApplied: boolean;
+  quoteCouponMessage: string;
   agreeToTerms: boolean;
   
   // Cart items
@@ -52,6 +58,12 @@ const defaultCheckoutData: CheckoutData = {
   shippingMethod: null,
   paymentMethod: null,
   couponCode: '',
+  quoteSubtotal: null,
+  quoteDiscountAmount: null,
+  quoteShippingCost: null,
+  quoteTotalPrice: null,
+  quoteCouponApplied: false,
+  quoteCouponMessage: '',
   agreeToTerms: false,
   items: [],
 };
