@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { orderConfirmationSample } from '@/data';
 import { formatVND } from '@/utils';
 import { isApiConfigured } from '@/services/api';
@@ -16,10 +16,14 @@ function paymentMethodToBrand(method?: string | null): { brand: string; last4: s
   if (m === 'paypal') return { brand: 'PayPal', last4: '—', expires: '—' };
   if (m === 'paypal_credit') return { brand: 'PayPal Credit', last4: '—', expires: '—' };
   if (m === 'cash_on_delivery') return { brand: 'Thanh toán khi nhận hàng', last4: '—', expires: '—' };
+  if (m === 'vnpay') return { brand: 'VNPay', last4: '—', expires: '—' };
   return { brand: method, last4: '—', expires: '—' };
 }
 
 const OrderConfirmationPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const paymentResult = searchParams.get('payment');
+  const paymentReason = searchParams.get('reason');
   const location = useLocation();
   const { orderId: orderIdFromPath } = useParams<{ orderId?: string }>();
   const state = location.state as { orderId?: number; fromApi?: boolean } | null;
@@ -113,6 +117,18 @@ const OrderConfirmationPage: React.FC = () => {
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-12">
+        {paymentResult === 'failed' && (
+          <div className="mb-8 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/40 dark:border-red-900 px-4 py-3 text-sm text-red-800 dark:text-red-200">
+            Thanh toán chưa hoàn tất
+            {paymentReason ? ` — ${decodeURIComponent(paymentReason)}` : ''}. Bạn có thể thử lại từ mục đơn hàng hoặc liên hệ
+            hỗ trợ nếu đã bị trừ tiền.
+          </div>
+        )}
+        {paymentResult === 'success' && (
+          <div className="mb-8 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-900 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100">
+            Thanh toán VNPay đã được ghi nhận. Cảm ơn bạn!
+          </div>
+        )}
         {/* Success Header */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full mb-6">
