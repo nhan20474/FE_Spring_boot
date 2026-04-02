@@ -629,6 +629,11 @@ export async function createVnpayPayment(orderId: number): Promise<{ paymentUrl:
   return apiPost<{ paymentUrl: string }>('/payments/vnpay/create', { orderId }, { auth: true });
 }
 
+/** POST /api/payments/momo/create — trả về URL chuyển hướng MoMo */
+export async function createMomoPayment(orderId: number): Promise<{ paymentUrl: string }> {
+  return apiPost<{ paymentUrl: string }>('/payments/momo/create', { orderId }, { auth: true });
+}
+
 /** GET /api/orders – requires Authorization */
 export async function getOrders(): Promise<OrderDto[]> {
   const raw = await apiGet<OrderDto[] | PageResponse<OrderDto> | ItemsPageResponse<OrderDto>>('/orders', { auth: true });
