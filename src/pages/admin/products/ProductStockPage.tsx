@@ -1,18 +1,45 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AdminProductsTabs from '@/components/admin/AdminProductsTabs';
-import ProductStockModal from './components/ProductStockModal';
 import ProductStockTable from './components/ProductStockTable';
-import { INITIAL_STOCK_PRODUCTS, type StockProduct } from './productStockMock';
+import type { StockProduct } from './productStockMock';
+import * as backend from '@/services/backend';
 
 const PAGE_SIZE = 9;
 
 const ProductStockPage: React.FC = () => {
-  const [products, setProducts] = useState<StockProduct[]>(() => [...INITIAL_STOCK_PRODUCTS]);
+  const [products, setProducts] = useState<StockProduct[]>([]);
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<StockProduct | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await backend.adminGetProducts();
+      const mapped: StockProduct[] = list.map((p) => ({
+        id: String(p.id),
+        name: p.name,
+        category: p.categoryName ?? '—',
+        price: Number(p.price ?? 0),
+        piece: Number(p.stock ?? 0),
+        colors: ['#3B82F6'],
+        image: p.image ?? 'https://picsum.photos/seed/placeholder/120/120',
+      }));
+      setProducts(mapped);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không tải được dữ liệu tồn kho');
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchProducts();
+  }, []);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim().toLowerCase()), 300);
@@ -35,29 +62,37 @@ const ProductStockPage: React.FC = () => {
     setPage((p) => Math.min(p, totalPages));
   }, [totalPages]);
 
-  const openCreate = () => {
-    setEditingProduct(null);
-    setModalOpen(true);
-  };
-
-  const openEdit = (p: StockProduct) => {
-    setEditingProduct(p);
-    setModalOpen(true);
-  };
-
-  const handleSave = (p: StockProduct) => {
-    if (editingProduct) {
-      setProducts((prev) => prev.map((x) => (x.id === p.id ? p : x)));
-    } else {
-      setProducts((prev) => [...prev, p]);
+  const openEdit = async (p: StockProduct) => {
+    const input = window.prompt(`Nhập tồn kho mới cho "${p.name}"`, String(p.piece));
+    if (input == null) return;
+    const next = Number(input);
+    if (!Number.isFinite(next) || next < 0) {
+      window.alert('Tồn kho không hợp lệ.');
+      return;
     }
-    setModalOpen(false);
-    setEditingProduct(null);
+    const current = p.piece;
+    const diff = Math.round(next - current);
+    if (diff === 0) return;
+    try {
+      if (diff > 0) {
+        await backend.adminInventoryAdd({ productId: Number(p.id), quantity: diff });
+      } else {
+        await backend.adminInventoryRemove({ productId: Number(p.id), quantity: Math.abs(diff) });
+      }
+      await fetchProducts();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Cập nhật tồn kho thất bại');
+    }
   };
 
-  const handleDelete = (p: StockProduct) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
-    setProducts((prev) => prev.filter((x) => x.id !== p.id));
+  const handleDelete = async (p: StockProduct) => {
+    if (!window.confirm('Bạn có chắc muốn xóa sản phẩm này?')) return;
+    try {
+      await backend.adminDeleteProduct(p.id);
+      setProducts((prev) => prev.filter((x) => x.id !== p.id));
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Xóa sản phẩm thất bại');
+    }
   };
 
   const startIdx = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -88,7 +123,7 @@ const ProductStockPage: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={openCreate}
+            onClick={() => window.alert('Trang tồn kho hiện chỉ hỗ trợ cập nhật số lượng cho sản phẩm hiện có.')}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-white px-4 py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors shrink-0"
           >
             <span className="material-icons text-[18px]">add</span>
@@ -97,9 +132,21 @@ const ProductStockPage: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+          <span className="material-icons text-[20px]">error_outline</span>
+          {error}
+          <button onClick={() => void fetchProducts()} className="ml-auto text-red-600 underline font-semibold">Thử lại</button>
+        </div>
+      )}
+
       <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 md:p-6">
-          <ProductStockTable rows={pageRows} onEdit={openEdit} onDelete={handleDelete} />
+          {loading ? (
+            <div className="py-10 text-center text-slate-500 text-sm font-semibold">Đang tải tồn kho...</div>
+          ) : (
+            <ProductStockTable rows={pageRows} onEdit={openEdit} onDelete={handleDelete} />
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 md:px-6 py-4 border-t border-slate-100 bg-slate-50/50">
@@ -130,16 +177,6 @@ const ProductStockPage: React.FC = () => {
           </div>
         </div>
       </section>
-
-      <ProductStockModal
-        open={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          setEditingProduct(null);
-        }}
-        initialProduct={editingProduct}
-        onSave={handleSave}
-      />
     </div>
   );
 };

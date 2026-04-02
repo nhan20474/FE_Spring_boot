@@ -6,19 +6,22 @@
 export interface CategoryDto {
   id: number;
   name: string;
+  slug?: string | null;
+  parentId?: number | null;
   description?: string | null;
 }
 
 export interface ProductDto {
   id: number;
   name: string;
+  slug?: string | null;
   description: string | null;
   image: string | null;
   price: number;
-  categoryId: number;
-  categoryName: string;
-  stock: number;
-  featured: boolean;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  stock?: number | null;
+  featured?: boolean | null;
 }
 
 export interface AuthRequest {
@@ -49,6 +52,7 @@ export interface ProfileDto {
   phone?: string | null;
   gender?: string | null;
   dateOfBirth?: string | null;
+  defaultAddress?: AddressDto | null;
   passwordChangedAt?: string | null;
 }
 
@@ -75,19 +79,28 @@ export interface CreateOrderRequest {
 }
 
 export interface OrderItemDto {
-  productId: number;
+  productId: number | null;
   productName: string;
   productImage?: string | null;
   quantity: number;
   priceAtOrder: number;
+  lineTotal?: number | null;
+  selectedColor?: string | null;
+  selectedStorage?: string | null;
 }
 
 export interface OrderDto {
   id: number;
   userId: number;
+  shippingAddressId?: number | null;
+  subtotal?: number | null;
+  discountAmount?: number | null;
+  shippingCost?: number | null;
   totalPrice: number;
+  notes?: string | null;
   status: string;
   paymentMethod?: string | null;
+  shipment?: ShipmentDto | null;
   createdAt: string;
   items: OrderItemDto[];
 }
@@ -106,17 +119,57 @@ export interface AdminOrderItemDto {
 
 export interface AdminOrderDto {
   id: number;
-  customerName: string;
-  shippingAddressSummary: string;
+  customerName?: string | null;
+  shippingAddressSummary?: string | null;
   items: AdminOrderItemDto[];
-  subtotal: number;
-  discountAmount: number;
-  shippingCost: number;
+  subtotal?: number | null;
+  discountAmount?: number | null;
+  shippingCost?: number | null;
   totalPrice: number;
   paymentMethod?: string | null;
   notes?: string | null;
   status: string;
   createdAt: string;
+}
+
+export interface AdminOrdersResponse {
+  items: AdminOrderDto[];
+  page: number;
+  size: number;
+  total: number;
+  totalElements?: number;
+  totalPages?: number;
+}
+
+export interface OrderStatusHistoryDto {
+  oldStatus: string;
+  newStatus: string;
+  actor: string;
+  note?: string | null;
+  changedAt: string;
+}
+
+export interface ShipmentDto {
+  id: number;
+  orderId: number;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  status: string;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+  note?: string | null;
+}
+
+export interface ReturnRequestDto {
+  id: number;
+  orderId: number;
+  status: string;
+  reason?: string | null;
+  refundAmount?: number | null;
+  note?: string | null;
+  restocked: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UpdateAdminOrderStatusRequest {
@@ -138,6 +191,7 @@ export interface CartItemDto {
   quantity: number;
   selectedColor: string | null;
   selectedStorage: string | null;
+  variant?: string | null;
   priceAtAdd: number;
   lineTotal: number;
 }
