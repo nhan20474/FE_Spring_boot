@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { audioCategoryProducts } from '@/data';
+import { useApiProductsBySlug } from '@/hooks/useProductApi';
 import type { AccessoriesProduct } from '@/types';
 import ProductCard from '@/features/products/components/ProductCard';
 
@@ -18,7 +18,9 @@ const SUB_CATEGORIES = [
 
 const AudioCategoryPage: React.FC = () => {
   const [activeSub, setActiveSub] = useState('Headphones');
-  const [sortBy, setSortBy] = useState('Most Popular');
+  const [sortValue, setSortValue] = useState('createdAt-desc');
+  const [sortBy, sortDir] = sortValue.split('-');
+  const { data: audioCategoryProducts, loading } = useApiProductsBySlug('audio', sortBy, sortDir);
   const [page, setPage] = useState(1);
 
   return (
@@ -88,56 +90,6 @@ const AudioCategoryPage: React.FC = () => {
         </section>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Filters */}
-          <aside className="w-full lg:w-64 flex-shrink-0 space-y-8">
-            <div>
-              <h3 className="font-bold text-lg mb-4 flex items-center justify-between">
-                Audio Type
-                <span className="material-icons text-slate-400">expand_more</span>
-              </h3>
-              <div className="space-y-3">
-                {['Over-Ear', 'In-Ear', 'On-Ear', 'Bookshelf Speakers'].map((opt) => (
-                  <label key={opt} className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary" />
-                    <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors">{opt}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-lg mb-4">Brand</h3>
-              <div className="space-y-3">
-                {['Bose', 'Sony', 'JBL', 'Apple'].map((brand) => (
-                  <label key={brand} className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary" />
-                    <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors">{brand}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-lg mb-4">Battery Life</h3>
-              <div className="space-y-3">
-                {['Up to 10 hours', '10 - 20 hours', '20+ hours'].map((opt) => (
-                  <label key={opt} className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary" />
-                    <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors">{opt}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-lg mb-4">Connection Type</h3>
-              <div className="space-y-3">
-                {['Wireless (Bluetooth)', 'Wired (3.5mm)', 'Optical / HDMI'].map((opt) => (
-                  <label key={opt} className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary" />
-                    <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors">{opt}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </aside>
 
           {/* Main Content */}
           <div className="flex-1">
@@ -146,14 +98,14 @@ const AudioCategoryPage: React.FC = () => {
               <div className="flex items-center gap-4">
                 <span className="text-sm text-slate-500 whitespace-nowrap">Sắp xếp theo:</span>
                 <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  value={sortValue}
+                  onChange={(e) => setSortValue(e.target.value)}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm px-4 py-2 focus:ring-primary focus:border-primary"
                 >
-                  <option>Phổ biến nhất</option>
-                  <option>Giá: Thấp đến cao</option>
-                  <option>Giá: Cao đến thấp</option>
-                  <option>Hàng mới về</option>
+                  <option value="createdAt-desc">Mới nhất</option>
+                  <option value="createdAt-asc">Cũ nhất</option>
+                  <option value="price-asc">Giá: Thấp đến cao</option>
+                  <option value="price-desc">Giá: Cao đến thấp</option>
                 </select>
               </div>
             </div>

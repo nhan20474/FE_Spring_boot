@@ -11,17 +11,15 @@ const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns
 const PER_PAGE = 12;
 
 const ProductListingPage: React.FC = () => {
-  const [sortBy, setSortBy] = useState('Popularity');
+  const [sortValue, setSortValue] = useState('createdAt-desc');
+  const [sortBy, sortDir] = sortValue.split('-');
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
   const { addItem } = useCart();
   const { toggleItem, isInWishlist } = useWishlist();
-  const { data: listingProducts, loading } = useApiProducts({ page: 0, size: 100 });
+  const { data: listingProducts, loading } = useApiProducts({ page: 0, size: 100, sortBy, sortDir });
   const markImageError = (id: string) => setFailedImageIds((prev) => new Set(prev).add(id));
   const totalResults = listingProducts.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / PER_PAGE));
-  const [processorOpen, setProcessorOpen] = useState(true);
-  const [connectivityOpen, setConnectivityOpen] = useState(false);
-  const [powerOpen, setPowerOpen] = useState(false);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 w-full">
@@ -34,71 +32,6 @@ const ProductListingPage: React.FC = () => {
           className="mb-6"
         />
         <div className="flex gap-8">
-        <aside className="w-64 flex-shrink-0 hidden lg:block">
-          <div className="sticky top-24 space-y-8">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-slate-800 dark:text-white">Filters</h3>
-                <button className="text-xs text-primary font-medium hover:underline">Clear All</button>
-              </div>
-              <div className="mb-6">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">Brands</h4>
-                <div className="space-y-2">
-                  {['Apple', 'Samsung', 'Daikin', 'Sony'].map((brand, idx) => (
-                    <label key={brand} className="flex items-center gap-2 cursor-pointer group">
-                      <input type="checkbox" defaultChecked={idx === 0} className="rounded border-slate-300 text-primary focus:ring-primary" />
-                      <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary">{brand}</span>
-                      <span className="text-xs text-slate-400 ml-auto">{[124, 89, 42, 56][idx]}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="mb-6">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">Price Range</h4>
-                <div className="space-y-4">
-                  <div className="h-1 bg-primary/20 rounded-full relative">
-                    <div className="absolute h-full w-2/3 bg-primary left-0 rounded-full" />
-                    <div className="absolute top-1/2 left-0 -translate-y-1/2 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-primary rounded-full shadow-sm" />
-                    <div className="absolute top-1/2 left-2/3 -translate-y-1/2 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-primary rounded-full shadow-sm" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1"><span className="text-[10px] text-slate-400 uppercase">Min</span><input type="text" defaultValue="0 ₫" className="w-full text-sm border border-slate-200 dark:border-slate-700 bg-transparent dark:bg-slate-800 rounded px-2 py-1" /></div>
-                    <div className="flex-1"><span className="text-[10px] text-slate-400 uppercase">Max</span><input type="text" defaultValue="60.000.000 ₫" className="w-full text-sm border border-slate-200 dark:border-slate-700 bg-transparent dark:bg-slate-800 rounded px-2 py-1" /></div>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <button type="button" onClick={() => setProcessorOpen(!processorOpen)} className="flex items-center justify-between w-full text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Processor
-                    <span className={`material-icons text-sm transition-transform ${processorOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                  </button>
-                  {processorOpen && (
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="rounded border-slate-300 text-primary focus:ring-primary" /><span className="text-sm text-slate-600 dark:text-slate-400">Apple M3</span></label>
-                      <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="rounded border-slate-300 text-primary focus:ring-primary" /><span className="text-sm text-slate-600 dark:text-slate-400">Intel Core i9</span></label>
-                    </div>
-                  )}
-                </div>
-                <hr className="border-slate-200 dark:border-slate-800" />
-                <div>
-                  <button type="button" onClick={() => setConnectivityOpen(!connectivityOpen)} className="flex items-center justify-between w-full text-sm font-bold text-slate-500 uppercase tracking-wider">
-                    Connectivity
-                    <span className={`material-icons text-sm transition-transform ${connectivityOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                  </button>
-                </div>
-                <hr className="border-slate-200 dark:border-slate-800" />
-                <div>
-                  <button type="button" onClick={() => setPowerOpen(!powerOpen)} className="flex items-center justify-between w-full text-sm font-bold text-slate-500 uppercase tracking-wider">
-                    Đánh giá công suất
-                    <span className={`material-icons text-sm transition-transform ${powerOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </aside>
-
         <div className="flex-grow">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
@@ -107,12 +40,11 @@ const ProductListingPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-slate-500 whitespace-nowrap">Sắp xếp theo:</span>
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm px-4 py-2 focus:ring-primary min-w-[160px]">
-                <option>Phổ biến</option>
-                <option>Giá: Thấp đến cao</option>
-                <option>Giá: Cao đến thấp</option>
-                <option>Đánh giá của khách hàng</option>
-                <option>Mới nhất</option>
+              <select value={sortValue} onChange={(e) => setSortValue(e.target.value)} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm px-4 py-2 focus:ring-primary min-w-[160px]">
+                <option value="createdAt-desc">Mới nhất</option>
+                <option value="createdAt-asc">Cũ nhất</option>
+                <option value="price-asc">Giá: Thấp đến cao</option>
+                <option value="price-desc">Giá: Cao đến thấp</option>
               </select>
             </div>
           </div>

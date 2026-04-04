@@ -46,6 +46,8 @@ export interface ProductsParams {
   q?: string;
   page?: number;
   size?: number;
+  sortBy?: string;
+  sortDir?: string;
 }
 
 interface PageResponse<T> {
@@ -280,6 +282,8 @@ export async function getProducts(params: ProductsParams = {}): Promise<ProductD
   if (params.q != null && params.q !== '') sp.set('q', params.q);
   if (params.page != null) sp.set('page', String(params.page));
   if (params.size != null) sp.set('size', String(params.size));
+  if (params.sortBy != null) sp.set('sortBy', params.sortBy);
+  if (params.sortDir != null) sp.set('sortDir', params.sortDir);
   const query = sp.toString();
   const path = query ? `/products?${query}` : '/products';
   const raw = await apiGet<ProductDto[] | PageResponse<ProductDto>>(path, { auth: false });

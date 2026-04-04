@@ -8,14 +8,6 @@ import { formatVND, productDetailPath } from '@/utils';
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
 
 const SUB_CATEGORIES = ['iOS', 'Android', 'Feature Phones', 'Refurbished', 'All Products'];
-const BRANDS = [
-  { name: 'Apple', count: 24 },
-  { name: 'Samsung', count: 18 },
-  { name: 'Xiaomi', count: 12 },
-  { name: 'Google', count: 6 },
-];
-const RAM_OPTIONS = ['4 GB', '8 GB', '12 GB', '16 GB'];
-const STORAGE_OPTIONS = ['128 GB', '256 GB', '512 GB'];
 const TOTAL_PRODUCTS = 60;
 const PER_PAGE = 12;
 const TOTAL_PAGES = 10;
@@ -56,11 +48,10 @@ function Badge({ label, variant }: { label: string; variant: 'primary' | 'red' |
 const MobileCategoryPage: React.FC = () => {
   const { addItem } = useCart();
   const { toggleItem, isInWishlist } = useWishlist();
-  const { data: mobileCategoryProducts, loading } = useApiProductsBySlug('mobile');
-  const [sortBy, setSortBy] = useState('Most Relevant');
+  const [sortValue, setSortValue] = useState('createdAt-desc');
+  const [sortBy, sortDir] = sortValue.split('-');
+  const { data: mobileCategoryProducts, loading } = useApiProductsBySlug('mobile', sortBy, sortDir);
   const [selectedSub, setSelectedSub] = useState('All Products');
-  const [selectedRam, setSelectedRam] = useState<string | null>('12 GB');
-  const [storage, setStorage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
   const markImageError = (id: string) => setFailedImageIds((prev) => new Set(prev).add(id));
@@ -132,80 +123,6 @@ const MobileCategoryPage: React.FC = () => {
         </section>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Filters */}
-          <aside className="w-full lg:w-64 flex-shrink-0 space-y-8">
-            <div className="sticky top-24">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold">Filters</h2>
-                <button type="button" className="text-xs text-primary font-medium hover:underline">
-                  Clear All
-                </button>
-              </div>
-              <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6">
-                <h3 className="text-sm font-bold uppercase tracking-wider mb-4">Brand</h3>
-                <div className="space-y-3">
-                  {BRANDS.map((b) => (
-                    <label key={b.name} className="flex items-center gap-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        className="rounded border-slate-300 text-primary focus:ring-primary bg-white dark:bg-slate-800"
-                      />
-                      <span className="text-sm group-hover:text-primary transition-colors">{b.name}</span>
-                      <span className="text-xs text-slate-400 ml-auto">{b.count}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6">
-                <h3 className="text-sm font-bold uppercase tracking-wider mb-4">Price Range</h3>
-                <input
-                  type="range"
-                  className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
-                />
-                <div className="flex justify-between items-center mt-4">
-                  <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">0 ₫</span>
-                  <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">50.000.000+ ₫</span>
-                </div>
-              </div>
-              <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6">
-                <h3 className="text-sm font-bold uppercase tracking-wider mb-4">RAM</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {RAM_OPTIONS.map((ram) => (
-                    <button
-                      key={ram}
-                      type="button"
-                      onClick={() => setSelectedRam(selectedRam === ram ? null : ram)}
-                      className={`px-2 py-2 text-xs rounded transition-all ${
-                        selectedRam === ram
-                          ? 'border border-primary text-primary bg-primary/5 font-bold'
-                          : 'border border-slate-200 dark:border-slate-700 hover:border-primary hover:text-primary'
-                      }`}
-                    >
-                      {ram}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mb-8">
-                <h3 className="text-sm font-bold uppercase tracking-wider mb-4">Storage</h3>
-                <div className="space-y-3">
-                  {STORAGE_OPTIONS.map((s) => (
-                    <label key={s} className="flex items-center gap-3 cursor-pointer group">
-                      <input
-                        type="radio"
-                        name="storage"
-                        checked={storage === s}
-                        onChange={() => setStorage(s)}
-                        className="text-primary focus:ring-primary bg-white dark:bg-slate-800 border-slate-300"
-                      />
-                      <span className="text-sm group-hover:text-primary">{s}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </aside>
-
           {/* Product Grid */}
           <div className="flex-grow">
             <div className="flex items-center justify-between mb-8">
@@ -216,14 +133,14 @@ const MobileCategoryPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400 font-medium">Sắp xếp theo:</span>
                 <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  value={sortValue}
+                  onChange={(e) => setSortValue(e.target.value)}
                   className="text-sm border-none bg-transparent font-bold focus:ring-0 cursor-pointer"
                 >
-                  <option>Phù hợp nhất</option>
-                  <option>Giá: Thấp đến cao</option>
-                  <option>Giá: Cao đến thấp</option>
-                  <option>Đánh giá cao nhất</option>
+                  <option value="createdAt-desc">Mới nhất</option>
+                  <option value="createdAt-asc">Cũ nhất</option>
+                  <option value="price-asc">Giá: Thấp đến cao</option>
+                  <option value="price-desc">Giá: Cao đến thấp</option>
                 </select>
               </div>
             </div>

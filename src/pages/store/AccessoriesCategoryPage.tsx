@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { accessoriesCategoryProducts } from '@/data';
+import { useApiProductsBySlug } from '@/hooks/useProductApi';
 import type { AccessoriesProduct } from '@/types';
 import ProductCard from '@/features/products/components/ProductCard';
 
@@ -19,7 +19,9 @@ const SUB_CATEGORIES = [
 
 const AccessoriesCategoryPage: React.FC = () => {
   const [activeSub, setActiveSub] = useState('Charging & Cables');
-  const [sortBy, setSortBy] = useState('Newest Arrivals');
+  const [sortValue, setSortValue] = useState('createdAt-desc');
+  const [sortBy, sortDir] = sortValue.split('-');
+  const { data: accessoriesCategoryProducts, loading } = useApiProductsBySlug('accessories', sortBy, sortDir);
   const [page, setPage] = useState(1);
 
   return (
@@ -89,72 +91,6 @@ const AccessoriesCategoryPage: React.FC = () => {
         </section>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Filters */}
-          <aside className="w-full lg:w-64 flex-shrink-0 space-y-8">
-            <div>
-              <h3 className="font-bold text-lg mb-4 flex items-center justify-between">
-                Compatibility
-                <span className="material-icons text-slate-400">expand_more</span>
-              </h3>
-              <div className="space-y-3">
-                {['MacBook Pro (M1/M2/M3)', 'iPhone 15 Series', 'iPad Pro 12.9"', 'Universal USB-C'].map((opt, idx) => (
-                  <label key={opt} className="flex items-center gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      defaultChecked={idx === 1}
-                      className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary"
-                    />
-                    <span className={`text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors ${idx === 1 ? 'font-medium' : ''}`}>
-                      {opt}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-lg mb-4">Brand</h3>
-              <div className="space-y-3">
-                {['Satechi', 'Logitech', 'Anker', 'Apple'].map((brand) => (
-                  <label key={brand} className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary" />
-                    <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors">{brand}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-lg mb-4">Color</h3>
-              <div className="flex flex-wrap gap-3">
-                {[
-                  { bg: 'bg-slate-900', ring: 'border-2 border-primary ring-2 ring-transparent ring-offset-2' },
-                  { bg: 'bg-slate-300', ring: 'border-2 border-transparent' },
-                  { bg: 'bg-blue-500', ring: 'border-2 border-transparent' },
-                  { bg: 'bg-white border border-slate-200', ring: '' },
-                  { bg: 'bg-rose-400', ring: 'border-2 border-transparent' },
-                ].map((c, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`w-8 h-8 rounded-full ${c.bg} ${c.ring}`}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-              <h3 className="font-bold text-lg mb-4">Price Range</h3>
-              <div className="space-y-4">
-                <input
-                  type="range"
-                  className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
-                />
-                <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
-                  <span>$0</span>
-                  <span>$500+</span>
-                </div>
-              </div>
-            </div>
-          </aside>
-
           {/* Main Content */}
           <div className="flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
@@ -162,14 +98,14 @@ const AccessoriesCategoryPage: React.FC = () => {
               <div className="flex items-center gap-4">
                 <span className="text-sm text-slate-500 whitespace-nowrap">Sắp xếp theo:</span>
                 <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  value={sortValue}
+                  onChange={(e) => setSortValue(e.target.value)}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm px-4 py-2 focus:ring-primary focus:border-primary"
                 >
-                  <option>Hàng mới về</option>
-                  <option>Giá: Thấp đến cao</option>
-                  <option>Giá: Cao đến thấp</option>
-                  <option>Phổ biến nhất</option>
+                  <option value="createdAt-desc">Mới nhất</option>
+                  <option value="createdAt-asc">Cũ nhất</option>
+                  <option value="price-asc">Giá: Thấp đến cao</option>
+                  <option value="price-desc">Giá: Cao đến thấp</option>
                 </select>
               </div>
             </div>
