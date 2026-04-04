@@ -117,84 +117,58 @@ const TrendingCard: React.FC<TrendingCardProps> = ({ product, imageError, onImag
 }
 
 const HomePage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'new' | 'bestseller' | 'featured'>('new');
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
   const { data: trendingProducts } = useApiFeaturedProducts();
 
   const markImageError = (id: string) => setFailedImageIds((prev) => new Set(prev).add(id));
 
-  const isUsingApiProducts = true;
-
   return (
     <div className="bg-background-light dark:bg-background-dark font-display text-slate-800 dark:text-slate-100 transition-colors duration-200">
       <main className="container mx-auto px-4 py-8">
 
-
+        {/* Hardcoded Hero Banner */}
         <section className="mb-16">
-          <div className="flex justify-between items-end mb-6">
-            <div>
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Sản phẩm nổi bật</h3>
-            </div>
-            <Link to="/search" className="text-primary font-bold hover:underline flex items-center gap-1">
-              Xem tất cả <span className="material-icons text-sm">arrow_forward</span>
-            </Link>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-4 mb-8 border-b border-slate-200 dark:border-slate-800">
-            <button
-              onClick={() => setActiveTab('new')}
-              className={`pb-3 px-4 font-semibold text-sm transition-colors ${activeTab === 'new'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              Hàng mới về
-            </button>
-            <button
-              onClick={() => setActiveTab('bestseller')}
-              className={`pb-3 px-4 font-semibold text-sm transition-colors ${activeTab === 'bestseller'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              Bán chạy
-            </button>
-            <button
-              onClick={() => setActiveTab('featured')}
-              className={`pb-3 px-4 font-semibold text-sm transition-colors ${activeTab === 'featured'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-            >
-              Sản phẩm nổi bật
-            </button>
-          </div>
-
-          {/* Products Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {trendingProducts
-              .filter((product) => {
-                if (activeTab === 'new') {
-                  // New Arrival: from API show all; from mock use !isBestSeller
-                  if (isUsingApiProducts) return true;
-                  return !product.isBestSeller;
-                } else if (activeTab === 'bestseller') {
-                  return product.isBestSeller === true;
-                } else {
-                  return true;
-                }
-              })
-              .map((product) => (
-                <TrendingCard
-                  key={product.id}
-                  product={product}
-                  imageError={failedImageIds.has(product.id)}
-                  onImageError={() => markImageError(product.id)}
-                />
-              ))}
-          </div>
+          <Link to="/deals" className="block w-full overflow-hidden rounded-3xl shadow-sm hover:shadow-md transition-shadow relative group bg-slate-100 dark:bg-slate-800 aspect-[21/9] sm:aspect-[3/1]">
+            {/* Đã sửa lại đường dẫn hợp lệ */}
+            <img
+              src="/uploads/9687542.jpg"
+              alt="Khuyến Mãi"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+            />
+          </Link>
         </section>
+
+        {/* Grouped Categories Section */}
+        {Array.from(new Set(trendingProducts.map((p) => p.category)))
+          .filter(Boolean)
+          .map((categoryName) => {
+            const itemsInCategory = trendingProducts.filter((p) => p.category === categoryName);
+            if (itemsInCategory.length === 0) return null;
+
+            return (
+              <section key={categoryName} className="mb-16">
+                <div className="flex justify-between items-end mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">{categoryName}</h3>
+                  </div>
+                  <Link to={`/search?category=${categoryName}`} className="text-primary font-bold hover:underline flex items-center gap-1">
+                    Xem tất cả <span className="material-icons text-sm">arrow_forward</span>
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {itemsInCategory.slice(0, 4).map((product) => (
+                    <TrendingCard
+                      key={product.id}
+                      product={product}
+                      imageError={failedImageIds.has(product.id)}
+                      onImageError={() => markImageError(product.id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
 
       </main>
     </div>
