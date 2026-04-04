@@ -1,4 +1,4 @@
-import type { Product, OrderItem, NavItem, CartItem, Banner, FooterLink, ListingProduct, ProductDetailExtras, TrendingProduct, AccessoriesProduct, OrderConfirmationData, OrderHistoryCardItem, OrderDetailsData, SavedAddress } from '@/types';
+import type { Product, OrderItem, NavItem, CartItem, FooterLink, ListingProduct, ProductDetailExtras, TrendingProduct, AccessoriesProduct, OrderConfirmationData, OrderHistoryCardItem, OrderDetailsData, SavedAddress } from '@/types';
 
 export const products: Product[] = [
   {
@@ -305,8 +305,6 @@ const TECHMOUSE_IMAGE = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDP_
 
 export const orderConfirmationSample: OrderConfirmationData = {
   orderId: 'TH-89234-2024',
-  showInstallationBanner: true,
-  installationMessage: 'Our certified technician will contact you within 24 hours to confirm the installation schedule for your SmartCool AC units.',
   lineItems: [
     {
       id: 'li-1',
@@ -379,27 +377,6 @@ export const navItems: NavItem[] = [
   { label: 'Lịch sử đơn hàng', icon: 'shopping_bag', path: '/orders' },
   { label: 'Sổ địa chỉ', icon: 'location_on', path: '/account/addresses' },
   { label: 'Yêu thích', icon: 'favorite', path: '/wishlist' },
-];
-
-export const banners: Banner[] = [
-  {
-    id: 'b1',
-    title: 'The New Era of Mobile',
-    subtitle: 'Limited Release',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD9EZ0Q4vX9IPndOFjj7_skVf-l7pyevyQ8ULM2DpY-NM09eZjjYMJDJ_boFOXE4o5Psfs5mSqIpQlo2ZDWER7RxkgdL1vPlHd-bd21NvLpz0FL6OWhxl3HVbXXc5NVAUPBuHVCTUtqGvGUFsorSoGjuOyNGA001GS6LbQPg1qhIFBZ3z6P3oDbnTGqy2ycn7egRaB-dDNorDvx3eu_Jgx7YA8RZNQYpP8XzYdLC40WBZyQJzy6HrgULh8QUKS3SKdJ-SofEevLrTw',
-    link: '/category/mobile',
-    linkText: 'Shop Now',
-    theme: 'primary',
-  },
-  {
-    id: 'b2',
-    title: 'Stay Cool, Stay Smart',
-    subtitle: 'Summer Sale',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBdtTa2GrJ-3ZpC9KUsMcU1Q9jIWd-nIEdt8lAUB2KAyGHG7nrNpvqPfQzNZpGOeEYDfLZKw_HIczAQMTMF3oBRF4UPihmKi0ppTpef11ASDtnD8FH9mOOVUwQeVjOif5JfgRCao0FzcVIAdUGyKdTYdKA3AVj6xDbl53kXBxM30h2tzMuMAbSCiVkcNXL-qUGX5zi9LHcEq4flgjEcP6R-p24qXLPv-7inYbN5fb7nP3tojXUyVwVhzKfoCdY70MANTmLOVJj6MD0',
-    link: '/#/search?category=cooling',
-    linkText: 'View Offers',
-    theme: 'emerald',
-  },
 ];
 
 export const trendingProducts: TrendingProduct[] = [

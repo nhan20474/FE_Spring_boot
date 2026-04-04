@@ -66,8 +66,6 @@ export interface OrderConfirmationData {
   shipping: number;
   tax: number;
   total: number;
-  showInstallationBanner?: boolean;
-  installationMessage?: string;
   delivery: {
     estimatedDelivery: string;
     shippingAddress: {
@@ -175,16 +173,6 @@ export interface CartItem {
   price: number;
   quantity: number;
   image: string;
-}
-
-export interface Banner {
-  id: string;
-  title: string;
-  subtitle: string;
-  image: string;
-  link: string;
-  linkText: string;
-  theme: 'indigo' | 'emerald' | 'primary';
 }
 
 export interface TrendingProduct {

@@ -161,21 +161,6 @@ const OrderConfirmationPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Summary Left Column */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Special Highlight for AC Orders */}
-            {order.showInstallationBanner && (
-              <div className="bg-blue-50 dark:bg-primary/10 border-l-4 border-primary p-6 rounded-r-lg">
-                <div className="flex gap-4">
-                  <span className="material-icons text-primary">engineering</span>
-                  <div>
-                    <h3 className="font-bold text-slate-900 dark:text-white">Đã lên lịch lắp đặt</h3>
-                    <p className="text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                      {order.installationMessage ?? 'Kỹ thuật viên sẽ liên hệ trong 24 giờ để xác nhận lịch lắp đặt.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Order Summary */}
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="p-6 border-b border-slate-100 dark:border-slate-700">

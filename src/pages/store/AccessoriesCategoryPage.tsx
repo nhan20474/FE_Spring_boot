@@ -4,8 +4,6 @@ import { useApiProductsBySlug } from '@/hooks/useProductApi';
 import type { AccessoriesProduct } from '@/types';
 import ProductCard from '@/features/products/components/ProductCard';
 
-const HERO_IMAGE =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuCi1GpWnEhQSlHntiNLVve9xzux9Uvoto9E-Mw4dCOwR502O-eYrKgv20d47lGjmX0Fsn0gFdDcd8tqCBTRkNIvqZcW0uBuumshu6Rg5c2zf6cXEVNcANj1ZzFLq_3xDURsHq7NJt-RLN0YAVi8ft535Ct-Kxt9FUAqYuX0d6gGiHx5P2gTpggxpKUA_QW1Ep06u5P6O8WYHbCW_nr_tdn5OqfcF5k1h7yqKkW_iQ-q_iNXmagg9U4j3ivnwHdYBpTl_EZlRFPV5oY';
 
 const SUB_CATEGORIES = [
   { label: 'Charging & Cables', icon: 'usb' },
@@ -35,33 +33,7 @@ const AccessoriesCategoryPage: React.FC = () => {
           <span className="text-slate-900 dark:text-slate-200 font-semibold">Accessories</span>
         </nav>
 
-        {/* Hero Banner */}
-        <section className="relative h-64 md:h-80 rounded-xl overflow-hidden mb-10 group">
-          <img
-            src={HERO_IMAGE}
-            alt="Tech Setup"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-background-dark/80 via-background-dark/40 to-transparent flex flex-col justify-center px-8 md:px-16">
-            <span className="text-primary font-bold tracking-widest text-sm mb-2">LIMITED TIME OFFERS</span>
-            <h1 className="text-3xl md:text-5xl font-bold text-white mb-4 leading-tight">
-              Level Up Your
-              <br />
-              Tech Setup
-            </h1>
-            <p className="text-slate-300 max-w-md mb-6 hidden md:block">
-              Discover high-performance peripherals and essential gear designed to boost your productivity and elevate your aesthetic.
-            </p>
-            <div>
-              <Link
-                to="/search?category=accessories"
-                className="inline-block bg-primary hover:bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold transition-all shadow-lg shadow-primary/20"
-              >
-                Shop the Collection
-              </Link>
-            </div>
-          </div>
-        </section>
+
 
         {/* Sub-Category Icons Bar */}
         <section className="mb-12 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

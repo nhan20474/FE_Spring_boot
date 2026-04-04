@@ -8,7 +8,7 @@ import { ApiError } from '@/services/api';
 import { useCart } from '@/context/CartContext';
 import { shippingCostForNetMerchandiseVnd } from '@/utils';
 import PaymentTabs, { type PaymentMethodType } from './PaymentTabs';
-import CreditCardForm from './CreditCardForm';
+
 import CheckoutSummary from './CheckoutSummary';
 
 interface CheckoutStep3Props {
@@ -20,13 +20,7 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
   const { checkoutData, updateCheckoutData } = useCheckout();
   const { isAuthenticated } = useAuth();
   const { clearCart } = useCart();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('credit_card');
-  const [cardData, setCardData] = useState({
-    cardNumber: '',
-    cardHolder: '',
-    expiryDate: '',
-    cvv: '',
-  });
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('vnpay');
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -34,21 +28,6 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-
-    if (paymentMethod === 'credit_card') {
-      if (!cardData.cardNumber || cardData.cardNumber.replace(/\s/g, '').length < 16) {
-        newErrors.cardNumber = 'Please enter a valid card number';
-      }
-      if (!cardData.cardHolder || cardData.cardHolder.length < 3) {
-        newErrors.cardHolder = 'Please enter card holder name';
-      }
-      if (!cardData.expiryDate || cardData.expiryDate.length < 5) {
-        newErrors.expiryDate = 'Please enter expiration date';
-      }
-      if (!cardData.cvv || cardData.cvv.length < 3) {
-        newErrors.cvv = 'Please enter CVV';
-      }
-    }
 
     if (!agreeToTerms) {
       newErrors.terms = 'You must agree to the terms and conditions';
@@ -64,12 +43,6 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
     updateCheckoutData({
       paymentMethod: {
         type: paymentMethod,
-        ...(paymentMethod === 'credit_card' && {
-          cardNumber: cardData.cardNumber.replace(/\s/g, ''),
-          cardHolder: cardData.cardHolder,
-          expiryDate: cardData.expiryDate,
-          cvv: cardData.cvv,
-        }),
       },
       agreeToTerms: true,
     });
@@ -153,10 +126,6 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
 
         <PaymentTabs selectedMethod={paymentMethod} onSelectMethod={setPaymentMethod} />
 
-        {paymentMethod === 'credit_card' && (
-          <CreditCardForm onCardDataChange={setCardData} />
-        )}
-
         {paymentMethod === 'vnpay' && (
           <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-8 text-center">
             <p className="text-slate-600 dark:text-slate-400 mb-2">
@@ -166,28 +135,6 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
             <p className="text-sm text-slate-500 dark:text-slate-500">
               Đơn được tạo ở trạng thái chờ thanh toán cho đến khi giao dịch thành công.
             </p>
-          </div>
-        )}
-
-        {paymentMethod === 'paypal' && (
-          <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-8 text-center">
-            <p className="text-slate-600 dark:text-slate-400 mb-4">
-              Bạn sẽ được chuyển sang PayPal để hoàn tất thanh toán
-            </p>
-            <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-              Tiếp tục với PayPal
-            </button>
-          </div>
-        )}
-
-        {paymentMethod === 'paypal_credit' && (
-          <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-8 text-center">
-            <p className="text-slate-600 dark:text-slate-400 mb-4">
-              Bạn sẽ được chuyển sang PayPal Credit để hoàn tất thanh toán
-            </p>
-            <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-              Tiếp tục với PayPal Credit
-            </button>
           </div>
         )}
 
