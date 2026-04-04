@@ -309,15 +309,6 @@ const OrderDetailPage: React.FC = () => {
             <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3 flex-wrap">
                 <UiOrderStatusBadge status={currentStatus} />
-                <button
-                  type="button"
-                  onClick={() => setChangerOpen(true)}
-                  disabled={updating}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <span className="material-icons text-[16px]">edit</span>
-                Đổi trạng thái
-                </button>
               </div>
 
               <div className="flex items-center gap-2">
