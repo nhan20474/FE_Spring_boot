@@ -4,8 +4,6 @@ import {
   adminGetOrder,
   adminGetOrderReturns,
   adminGetOrderStatusHistory,
-  adminGetShipment,
-  adminUpsertShipment,
   adminCreateReturn,
   adminUpdateReturnStatus,
   adminUpdateOrderStatus,
@@ -14,7 +12,6 @@ import type {
   AdminOrderDto,
   OrderStatusHistoryDto,
   ReturnRequestDto,
-  ShipmentDto,
   UpdateAdminOrderStatusRequest,
 } from '@/types/api';
 import { formatDate } from '@/utils/formatDate';
@@ -40,21 +37,12 @@ const OrderDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [statusHistory, setStatusHistory] = useState<OrderStatusHistoryDto[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [shipment, setShipment] = useState<ShipmentDto | null>(null);
-  const [shipmentLoading, setShipmentLoading] = useState(false);
-  const [shipmentSaving, setShipmentSaving] = useState(false);
-  const [shipForm, setShipForm] = useState({
-    carrier: '',
-    trackingNumber: '',
-    status: '',
-    note: '',
-  });
   const [returns, setReturns] = useState<ReturnRequestDto[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnForm, setReturnForm] = useState({ reason: '', refundAmount: '', note: '' });
   const [returnSubmitting, setReturnSubmitting] = useState(false);
   const [returnStatusUpdatingId, setReturnStatusUpdatingId] = useState<number | null>(null);
-  const [shipmentError, setShipmentError] = useState<string | null>(null);
+
   const [returnError, setReturnError] = useState<string | null>(null);
   const [changerOpen, setChangerOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -119,35 +107,6 @@ const OrderDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (!orderId) {
-      setShipment(null);
-      setShipForm({ carrier: '', trackingNumber: '', status: '', note: '' });
-      return;
-    }
-    setShipmentLoading(true);
-    setShipmentError(null);
-    adminGetShipment(orderId)
-      .then((s) => {
-        setShipment(s);
-        if (s) {
-          setShipForm({
-            carrier: s.carrier ?? '',
-            trackingNumber: s.trackingNumber ?? '',
-            status: s.status ?? '',
-            note: s.note ?? '',
-          });
-        } else {
-          setShipForm({ carrier: '', trackingNumber: '', status: 'pending', note: '' });
-        }
-      })
-      .catch(() => {
-        setShipment(null);
-        setShipForm({ carrier: '', trackingNumber: '', status: 'pending', note: '' });
-      })
-      .finally(() => setShipmentLoading(false));
-  }, [orderId]);
-
-  useEffect(() => {
-    if (!orderId) {
       setReturns([]);
       return;
     }
@@ -190,31 +149,6 @@ const OrderDetailPage: React.FC = () => {
       // keep modal open; user can retry
     } finally {
       setUpdating(false);
-    }
-  };
-
-  const handleSaveShipment = async () => {
-    if (!orderId) return;
-    setShipmentError(null);
-    setShipmentSaving(true);
-    try {
-      const updated = await adminUpsertShipment(orderId, {
-        carrier: shipForm.carrier.trim() || undefined,
-        trackingNumber: shipForm.trackingNumber.trim() || undefined,
-        status: shipForm.status.trim() || undefined,
-        note: shipForm.note.trim() || undefined,
-      });
-      setShipment(updated);
-      setShipForm({
-        carrier: updated.carrier ?? '',
-        trackingNumber: updated.trackingNumber ?? '',
-        status: updated.status ?? '',
-        note: updated.note ?? '',
-      });
-    } catch (e) {
-      setShipmentError(e instanceof Error ? e.message : 'Không lưu được vận đơn');
-    } finally {
-      setShipmentSaving(false);
     }
   };
 
@@ -427,79 +361,6 @@ const OrderDetailPage: React.FC = () => {
                 </li>
               ))}
             </ul>
-          )}
-        </div>
-      </section>
-
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <div className="text-sm font-bold text-slate-900">Vận đơn (giao hàng)</div>
-          <div className="text-xs font-semibold text-slate-500">GET/PUT /api/admin/orders/&#123;id&#125;/shipment</div>
-        </div>
-        <div className="p-6 space-y-4">
-          {shipmentLoading ? (
-            <p className="text-xs font-semibold text-slate-500">Đang tải vận đơn…</p>
-          ) : (
-            <>
-              {shipment && (
-                <p className="text-[11px] text-slate-500">
-                  ID vận đơn: <span className="font-mono font-semibold text-slate-700">{shipment.id}</span>
-                  {shipment.shippedAt && (
-                    <span className="ml-2">· Gửi: {formatDate(shipment.shippedAt)}</span>
-                  )}
-                  {shipment.deliveredAt && (
-                    <span className="ml-2">· Nhận: {formatDate(shipment.deliveredAt)}</span>
-                  )}
-                </p>
-              )}
-              {!shipment && <p className="text-xs text-slate-500">Chưa có vận đơn — điền form bên dưới để tạo/cập nhật.</p>}
-              {shipmentError && <p className="text-xs text-red-600">{shipmentError}</p>}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="block text-[11px] font-bold text-slate-600">
-                  Đơn vị vận chuyển
-                  <input
-                    className={`mt-1 ${inputCls}`}
-                    value={shipForm.carrier}
-                    onChange={(e) => setShipForm((f) => ({ ...f, carrier: e.target.value }))}
-                    placeholder="VD: GHTK, GHN…"
-                  />
-                </label>
-                <label className="block text-[11px] font-bold text-slate-600">
-                  Mã vận đơn
-                  <input
-                    className={`mt-1 ${inputCls}`}
-                    value={shipForm.trackingNumber}
-                    onChange={(e) => setShipForm((f) => ({ ...f, trackingNumber: e.target.value }))}
-                    placeholder="Tracking number"
-                  />
-                </label>
-                <label className="block text-[11px] font-bold text-slate-600">
-                  Trạng thái giao
-                  <input
-                    className={`mt-1 ${inputCls}`}
-                    value={shipForm.status}
-                    onChange={(e) => setShipForm((f) => ({ ...f, status: e.target.value }))}
-                    placeholder="pending, in_transit, delivered…"
-                  />
-                </label>
-                <label className="block text-[11px] font-bold text-slate-600 sm:col-span-2">
-                  Ghi chú
-                  <input
-                    className={`mt-1 ${inputCls}`}
-                    value={shipForm.note}
-                    onChange={(e) => setShipForm((f) => ({ ...f, note: e.target.value }))}
-                  />
-                </label>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleSaveShipment()}
-                disabled={!orderId || shipmentSaving}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {shipmentSaving ? 'Đang lưu…' : 'Lưu vận đơn'}
-              </button>
-            </>
           )}
         </div>
       </section>

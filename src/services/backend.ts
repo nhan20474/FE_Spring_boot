@@ -30,7 +30,6 @@ import type {
   CartDto,
   CartItemDto,
   AddressDto,
-  ShipmentDto,
   ReturnRequestDto,
   AdminDashboardSummaryDto,
   CouponDto,
@@ -65,10 +64,6 @@ interface ItemsPageResponse<T> {
   totalElements?: number;
   totalPages?: number;
   [key: string]: unknown;
-}
-
-interface ShipmentNullResponse {
-  shipment: null;
 }
 
 interface InventoryReplayResponse {
@@ -123,13 +118,6 @@ function extractItemsArray<T>(response: T[] | { items?: T[] } | null | undefined
     return (response as { items?: T[] }).items as T[];
   }
   return [];
-}
-
-/** Handle shipment union: ShipmentDto OR { shipment: null } */
-function extractShipment(response: ShipmentDto | ShipmentNullResponse | null | undefined): ShipmentDto | null {
-  if (!response || typeof response !== 'object') return null;
-  if ('shipment' in response) return null;
-  return response as ShipmentDto;
 }
 
 /** Map CartDto (backend) → CartItem[] (frontend) */
@@ -571,20 +559,6 @@ export async function adminGetOrderStatusHistory(orderId: number | string): Prom
   return extractItemsArray(raw);
 }
 
-/** GET /api/admin/orders/{orderId}/shipment */
-export async function adminGetShipment(orderId: number | string): Promise<ShipmentDto | null> {
-  const raw = await apiGet<ShipmentDto | ShipmentNullResponse>(`/admin/orders/${orderId}/shipment`, { auth: true });
-  return extractShipment(raw);
-}
-
-/** PUT /api/admin/orders/{orderId}/shipment */
-export async function adminUpsertShipment(
-  orderId: number | string,
-  body: { carrier?: string; trackingNumber?: string; status?: string; note?: string }
-): Promise<ShipmentDto> {
-  return apiPut<ShipmentDto>(`/admin/orders/${orderId}/shipment`, body, { auth: true });
-}
-
 /** GET /api/admin/orders/{orderId}/returns */
 export async function adminGetOrderReturns(orderId: number | string): Promise<ReturnRequestDto[]> {
   const raw = await apiGet<ReturnRequestDto[] | { items?: ReturnRequestDto[] }>(`/admin/orders/${orderId}/returns`, { auth: true });
@@ -642,12 +616,6 @@ export async function getOrders(): Promise<OrderDto[]> {
 /** GET /api/orders/:id – requires Authorization */
 export async function getOrder(id: number | string): Promise<OrderDto> {
   return apiGet<OrderDto>(`/orders/${id}`, { auth: true });
-}
-
-/** GET /api/orders/{id}/shipment */
-export async function getOrderShipment(id: number | string): Promise<ShipmentDto | null> {
-  const raw = await apiGet<ShipmentDto | ShipmentNullResponse>(`/orders/${id}/shipment`, { auth: true });
-  return extractShipment(raw);
 }
 
 /** POST /api/checkout/quote */

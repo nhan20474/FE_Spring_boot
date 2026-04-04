@@ -100,7 +100,6 @@ export interface OrderDto {
   notes?: string | null;
   status: string;
   paymentMethod?: string | null;
-  shipment?: ShipmentDto | null;
   createdAt: string;
   items: OrderItemDto[];
 }
@@ -149,16 +148,6 @@ export interface OrderStatusHistoryDto {
   changedAt: string;
 }
 
-export interface ShipmentDto {
-  id: number;
-  orderId: number;
-  carrier?: string | null;
-  trackingNumber?: string | null;
-  status: string;
-  shippedAt?: string | null;
-  deliveredAt?: string | null;
-  note?: string | null;
-}
 
 export interface ReturnRequestDto {
   id: number;
