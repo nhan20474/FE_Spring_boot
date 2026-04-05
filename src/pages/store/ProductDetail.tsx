@@ -207,15 +207,21 @@ const ProductDetail: React.FC = () => {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    addItem({
-                      productId: String(product.id),
-                      name: product.name,
-                      price: Number(product.price),
-                      image: Array.isArray(product.images) && product.images[0] ? product.images[0] : (product.image || ''),
-                      variant: [selectedColor, selectedSize].filter(Boolean).join(', ') || undefined,
-                    });
-                    setJustAddedToCart(true);
-                    setTimeout(() => setJustAddedToCart(false), 2000);
+                    void (async () => {
+                      const r = await addItem({
+                        productId: String(product.id),
+                        name: product.name,
+                        price: Number(product.price),
+                        image: Array.isArray(product.images) && product.images[0] ? product.images[0] : (product.image || ''),
+                        variant: [selectedColor, selectedSize].filter(Boolean).join(', ') || undefined,
+                      });
+                      if (!r.ok) {
+                        window.alert(r.message);
+                        return;
+                      }
+                      setJustAddedToCart(true);
+                      setTimeout(() => setJustAddedToCart(false), 2000);
+                    })();
                   }}
                   className="flex-1 min-w-0 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-bold text-sm sm:text-base py-3 sm:py-3.5 rounded-xl shadow-md shadow-primary/15 transition-all flex items-center justify-center gap-2"
                 >

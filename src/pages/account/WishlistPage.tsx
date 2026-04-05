@@ -43,7 +43,10 @@ const WishlistPage: React.FC = () => {
     (e: React.MouseEvent, productId: string, name: string, price: number, image: string) => {
       e.preventDefault();
       e.stopPropagation();
-      addItem({ productId, name, price, image: image || '' });
+      void (async () => {
+        const r = await addItem({ productId, name, price, image: image || '' });
+        if (!r.ok) window.alert(r.message);
+      })();
     },
     [addItem]
   );

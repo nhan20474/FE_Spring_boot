@@ -33,6 +33,7 @@ const CartPage: React.FC = () => {
     couponApplied: boolean;
     couponMessage: string;
   } | null>(null);
+  const [cartQtyError, setCartQtyError] = useState<string | null>(null);
 
   const canQuote = isApiConfigured() && Boolean(getToken()) && lineItemsForQuote.length > 0;
 
@@ -93,11 +94,23 @@ const CartPage: React.FC = () => {
     removeItem(item.id);
   };
 
+  const changeLineQuantity = async (cartItemId: string, nextQty: number) => {
+    setCartQtyError(null);
+    const r = await updateQuantity(cartItemId, nextQty);
+    if (!r.ok) setCartQtyError(r.message);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
       <h1 className="text-3xl font-bold mb-8">
         Giỏ hàng <span className="text-gray-400 font-normal ml-2">({totalItems} sản phẩm)</span>
       </h1>
+
+      {cartQtyError && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {cartQtyError}
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-grow space-y-6">
@@ -109,7 +122,11 @@ const CartPage: React.FC = () => {
               <div className="col-span-2 text-right">Thành tiền</div>
             </div>
 
-            {items.map((item) => (
+            {items.map((item) => {
+              const stock =
+                item.stock != null && Number.isFinite(Number(item.stock)) ? Math.max(0, Math.floor(Number(item.stock))) : null;
+              const atMaxStock = stock != null && item.quantity >= stock;
+              return (
               <div
                 key={item.id}
                 className="grid grid-cols-12 gap-4 p-6 items-center border-b border-gray-50 last:border-b-0"
@@ -151,11 +168,11 @@ const CartPage: React.FC = () => {
                 <div className="col-span-4 md:col-span-2 text-center">
                   <span className="font-bold text-gray-900">{formatVND(item.price)}</span>
                 </div>
-                <div className="col-span-4 md:col-span-2 flex justify-center">
+                <div className="col-span-4 md:col-span-2 flex flex-col items-center gap-1">
                   <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      onClick={() => void changeLineQuantity(item.id, item.quantity - 1)}
                       className="px-3 py-1 hover:bg-gray-50 text-gray-500"
                     >
                       -
@@ -163,18 +180,26 @@ const CartPage: React.FC = () => {
                     <span className="px-4 py-1 font-bold">{item.quantity}</span>
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="px-3 py-1 hover:bg-gray-50 text-gray-500"
+                      disabled={atMaxStock}
+                      title={atMaxStock ? 'Đã đạt số lượng tối đa trong kho' : undefined}
+                      onClick={() => void changeLineQuantity(item.id, item.quantity + 1)}
+                      className="px-3 py-1 hover:bg-gray-50 text-gray-500 disabled:opacity-40 disabled:pointer-events-none"
                     >
                       +
                     </button>
                   </div>
+                  {stock != null && (
+                    <span className="text-[11px] text-gray-500">
+                      {stock === 0 ? 'Hết hàng' : `Còn ${stock} trong kho`}
+                    </span>
+                  )}
                 </div>
                 <div className="col-span-4 md:col-span-2 text-right">
                   <span className="font-black text-indigo-600">{formatVND(item.price * item.quantity)}</span>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
 

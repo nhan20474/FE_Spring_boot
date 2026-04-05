@@ -142,6 +142,7 @@ function mapCartDto(dto: CartDto): CartItem[] {
     price: Number(item.priceAtAdd ?? 0),
     quantity: item.quantity ?? 1,
     image: item.productImage ?? '',
+    stock: item.stock != null && item.stock !== undefined ? Number(item.stock) : undefined,
   }));
 }
 

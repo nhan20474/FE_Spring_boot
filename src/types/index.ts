@@ -184,6 +184,8 @@ export interface CartItem {
   price: number;
   quantity: number;
   image: string;
+  /** Tồn kho từ server (khi đã đồng bộ giỏ API); undefined = chưa biết (giỏ local) */
+  stock?: number | null;
 }
 
 export interface TrendingProduct {

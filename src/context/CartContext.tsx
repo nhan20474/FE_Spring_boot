@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { getToken } from '@/services/api';
-import { isApiConfigured } from '@/services/api';
+import { ApiError, getToken, isApiConfigured } from '@/services/api';
 import * as backend from '@/services/backend';
 import type { CartItem } from '@/types';
+
+export type CartActionResult = { ok: true } | { ok: false; message: string };
 
 const CART_STORAGE_KEY = 'techhome_cart';
 
@@ -31,9 +32,9 @@ export interface AddToCartPayload {
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (payload: AddToCartPayload) => void;
+  addItem: (payload: AddToCartPayload) => Promise<CartActionResult>;
   removeItem: (cartItemId: string) => void;
-  updateQuantity: (cartItemId: string, quantity: number) => void;
+  updateQuantity: (cartItemId: string, quantity: number) => Promise<CartActionResult>;
   clearCart: () => void;
   totalCount: number;
 }
@@ -77,33 +78,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
     saveCartToStorage(items);
   }, [items, initialized]);
 
-  const addItem = useCallback((payload: AddToCartPayload) => {
+  const addItem = useCallback(async (payload: AddToCartPayload): Promise<CartActionResult> => {
     const { productId, name, price, image, variant } = payload;
     if (isApiConfigured() && getToken()) {
-      backend
-        .addCartItem({ productId, name, price, image: image || '', variant })
-        .then((res) => { if (Array.isArray(res)) setItems(res); })
-        .catch(() => {
-          setItems((prev) => {
-            const existing = prev.find((i) => i.productId === productId && (i.variant ?? '') === (variant ?? ''));
-            if (existing) {
-              return prev.map((i) => (i.id === existing.id ? { ...i, quantity: i.quantity + 1 } : i));
-            }
-            return [
-              ...prev,
-              {
-                id: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-                productId,
-                name,
-                variant,
-                price,
-                quantity: 1,
-                image: image || '',
-              },
-            ];
-          });
+      try {
+        const res = await backend.addCartItem({
+          productId,
+          name,
+          price,
+          image: image || '',
+          variant,
         });
-      return;
+        setItems(Array.isArray(res) ? res : []);
+        return { ok: true };
+      } catch (e) {
+        const msg =
+          e instanceof ApiError
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : 'Không thêm được vào giỏ. Vui lòng thử lại.';
+        return { ok: false, message: msg };
+      }
     }
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === productId && (i.variant ?? '') === (variant ?? ''));
@@ -123,6 +119,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         },
       ];
     });
+    return { ok: true };
   }, []);
 
   const removeItem = useCallback((cartItemId: string) => {
@@ -136,26 +133,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter((i) => i.id !== cartItemId));
   }, []);
 
-  const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
-    if (quantity < 1) {
-      removeItem(cartItemId);
-      return;
-    }
-    if (isApiConfigured() && getToken()) {
-      backend
-        .updateCartItemQuantity(cartItemId, quantity)
-        .then((res) => { if (Array.isArray(res)) setItems(res); })
-        .catch(() => {
-          setItems((prev) =>
-            prev.map((i) => (i.id === cartItemId ? { ...i, quantity } : i))
-          );
-        });
-      return;
-    }
-    setItems((prev) =>
-      prev.map((i) => (i.id === cartItemId ? { ...i, quantity } : i))
-    );
-  }, [removeItem]);
+  const updateQuantity = useCallback(
+    async (cartItemId: string, quantity: number): Promise<CartActionResult> => {
+      if (quantity < 1) {
+        removeItem(cartItemId);
+        return { ok: true };
+      }
+      if (isApiConfigured() && getToken()) {
+        try {
+          const res = await backend.updateCartItemQuantity(cartItemId, quantity);
+          setItems(Array.isArray(res) ? res : []);
+          return { ok: true };
+        } catch (e) {
+          const msg =
+            e instanceof ApiError
+              ? e.message
+              : e instanceof Error
+                ? e.message
+                : 'Không cập nhật được số lượng.';
+          return { ok: false, message: msg };
+        }
+      }
+      const item = items.find((i) => i.id === cartItemId);
+      if (item && item.stock != null && quantity > item.stock) {
+        return {
+          ok: false,
+          message: `"${item.name}" chỉ còn ${item.stock} trong kho.`,
+        };
+      }
+      setItems((prev) =>
+        prev.map((i) => (i.id === cartItemId ? { ...i, quantity } : i)),
+      );
+      return { ok: true };
+    },
+    [removeItem, items],
+  );
 
   const clearCart = useCallback(() => {
     const run = async () => {

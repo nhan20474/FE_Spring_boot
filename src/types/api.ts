@@ -285,6 +285,8 @@ export interface CartItemDto {
   variant?: string | null;
   priceAtAdd: number;
   lineTotal: number;
+  /** Tồn kho hiện tại (server) */
+  stock?: number | null;
 }
 
 export interface CartDto {
