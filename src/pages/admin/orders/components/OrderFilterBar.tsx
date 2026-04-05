@@ -1,21 +1,23 @@
 import React, { useEffect, useRef } from 'react';
-import type { OrderStatus, OrderTypeOption } from '../orderListMock';
+import type { OrderStatus, PaymentMethodOption } from '../orderListMock';
 import { formatOrderDate } from '../orderListUtils';
 import DateFilterPopover from './DateFilterPopover';
 import StatusFilterPopover from './StatusFilterPopover';
-import TypeFilterPopover from './TypeFilterPopover';
+import PaymentMethodFilterPopover from './PaymentMethodFilterPopover';
 
-export type FilterPanel = 'date' | 'type' | 'status' | null;
+export type FilterPanel = 'date' | 'paymentMethod' | 'status' | null;
 
 type OrderFilterBarProps = {
   openPanel: FilterPanel;
   setOpenPanel: (p: FilterPanel) => void;
   appliedDates: Date[];
   onApplyDates: (dates: Date[]) => void;
-  appliedTypes: Set<OrderTypeOption>;
-  onApplyTypes: (types: Set<OrderTypeOption>) => void;
+  appliedPaymentMethods: Set<PaymentMethodOption>;
+  onApplyPaymentMethods: (methods: Set<PaymentMethodOption>) => void;
   appliedStatuses: Set<OrderStatus>;
   onApplyStatuses: (statuses: Set<OrderStatus>) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
   onReset: () => void;
 };
 
@@ -25,10 +27,20 @@ function dateTriggerLabel(dates: Date[]): string {
   return `${dates.length} ngày`;
 }
 
-function typeTriggerLabel(types: Set<OrderTypeOption>): string {
-  if (types.size === 0) return 'Loại đơn';
-  if (types.size === 1) return [...types][0];
-  return `${types.size} loại đã chọn`;
+function paymentMethodTriggerLabel(methods: Set<PaymentMethodOption>): string {
+  if (methods.size === 0) return 'Thanh toán';
+  if (methods.size === 1) {
+    const opt = [...methods][0];
+    switch (opt) {
+      case 'vnpay': return 'VNPay';
+      case 'cash_on_delivery': return 'COD';
+      case 'momo': return 'MoMo';
+      case 'stripe': return 'Stripe';
+      case 'paypal': return 'PayPal';
+      default: return opt;
+    }
+  }
+  return `${methods.size} PTĐTT`;
 }
 
 function statusTriggerLabel(statuses: Set<OrderStatus>): string {
@@ -42,10 +54,12 @@ const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
   setOpenPanel,
   appliedDates,
   onApplyDates,
-  appliedTypes,
-  onApplyTypes,
+  appliedPaymentMethods,
+  onApplyPaymentMethods,
   appliedStatuses,
   onApplyStatuses,
+  searchQuery,
+  setSearchQuery,
   onReset,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -70,6 +84,20 @@ const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
       ref={rootRef}
       className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-stretch"
     >
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 sm:border-b-0 sm:border-r border-slate-100">
+        <span className="material-icons text-slate-500 text-[22px]">search</span>
+      </div>
+      
+      <div className="flex items-center px-4 py-3 border-b border-slate-100 sm:border-b-0 sm:border-r border-slate-100 flex-grow min-w-[200px]">
+        <input 
+          type="text" 
+          placeholder="Tìm ID đơn hàng / Tên khách hàng" 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-transparent outline-none text-sm font-semibold text-slate-800 placeholder:text-slate-400 placeholder:font-normal"
+        />
+      </div>
+
       <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 sm:border-b-0 sm:border-r border-slate-100">
         <span className="material-icons text-slate-500 text-[22px]">filter_alt</span>
       </div>
@@ -99,16 +127,16 @@ const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
       <div className="relative flex-1 min-w-[140px] border-b border-slate-100 sm:border-b-0 sm:border-r border-slate-100">
         <button
           type="button"
-          onClick={() => toggle('type')}
+          onClick={() => toggle('paymentMethod')}
           className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50/80 transition-colors"
         >
-          <span className="truncate text-left">{typeTriggerLabel(appliedTypes)}</span>
+          <span className="truncate text-left">{paymentMethodTriggerLabel(appliedPaymentMethods)}</span>
           <span className="material-icons text-slate-400 text-xl shrink-0">expand_more</span>
         </button>
-        {openPanel === 'type' && (
-          <TypeFilterPopover
-            initialTypes={appliedTypes}
-            onApply={onApplyTypes}
+        {openPanel === 'paymentMethod' && (
+          <PaymentMethodFilterPopover
+            initialPaymentMethods={appliedPaymentMethods}
+            onApply={onApplyPaymentMethods}
             onClose={() => setOpenPanel(null)}
           />
         )}

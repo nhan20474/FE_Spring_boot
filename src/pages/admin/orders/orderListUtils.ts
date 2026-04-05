@@ -1,4 +1,4 @@
-import type { AdminOrderRow, OrderStatus, OrderTypeOption } from './orderListMock';
+import type { AdminOrderRow, OrderStatus, PaymentMethodOption } from './orderListMock';
 
 export function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -44,31 +44,39 @@ export function uniqueSortedDates(dates: Date[]): Date[] {
 export type OrderFilters = {
   /** Rỗng = không lọc theo ngày */
   dates: Date[];
-  types: Set<OrderTypeOption>;
+  paymentMethods: Set<PaymentMethodOption>;
   statuses: Set<OrderStatus>;
+  searchQuery: string;
 };
 
 export function filterOrders(orders: AdminOrderRow[], f: OrderFilters): AdminOrderRow[] {
+  const q = f.searchQuery.trim().toLowerCase();
+  
   return orders.filter((o) => {
     if (f.dates.length > 0) {
       const matchDay = f.dates.some((fd) => isSameDay(o.date, fd));
       if (!matchDay) return false;
     }
-    if (f.types.size > 0) {
-      const hit = o.typeKeys.some((k) => f.types.has(k));
-      if (!hit) return false;
+    if (f.paymentMethods.size > 0) {
+      if (!f.paymentMethods.has(o.paymentMethod as PaymentMethodOption)) return false;
     }
     if (f.statuses.size > 0 && !f.statuses.has(o.status)) return false;
+    if (q) {
+      const matchId = o.id.toLowerCase().includes(q);
+      const matchName = o.name.toLowerCase().includes(q);
+      if (!matchId && !matchName) return false;
+    }
     return true;
   });
 }
 
-/** Ngày có đơn sau khi chỉ áp type + status (không lọc ngày) — dùng cho Prev/Next Date */
+/** Ngày có đơn sau khi chỉ áp payment + status (không lọc ngày) — dùng cho Prev/Next Date */
 export function datesAvailableForNav(
   orders: AdminOrderRow[],
-  types: Set<OrderTypeOption>,
+  paymentMethods: Set<PaymentMethodOption>,
   statuses: Set<OrderStatus>,
+  searchQuery: string,
 ): Date[] {
-  const base = filterOrders(orders, { dates: [], types, statuses });
+  const base = filterOrders(orders, { dates: [], paymentMethods, statuses, searchQuery });
   return uniqueSortedDates(base.map((o) => o.date));
 }

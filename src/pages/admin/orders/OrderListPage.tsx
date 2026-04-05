@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import OrderFilterBar, { type FilterPanel } from './components/OrderFilterBar';
 import OrderTable from './components/OrderTable';
-import { ORDER_TYPE_OPTIONS, type AdminOrderRow, type OrderStatus, type OrderTypeOption } from './orderListMock';
+import { type AdminOrderRow, type OrderStatus, type PaymentMethodOption } from './orderListMock';
 import { datesAvailableForNav, filterOrders, isSameDay } from './orderListUtils';
 import { adminGetOrders } from '@/services/backend';
 import type { AdminOrderDto } from '@/types/api';
@@ -11,8 +11,9 @@ const PAGE_SIZE = 9;
 const OrderListPage: React.FC = () => {
   const [openPanel, setOpenPanel] = useState<FilterPanel>(null);
   const [appliedDates, setAppliedDates] = useState<Date[]>([]);
-  const [appliedTypes, setAppliedTypes] = useState<Set<OrderTypeOption>>(new Set());
+  const [appliedPaymentMethods, setAppliedPaymentMethods] = useState<Set<PaymentMethodOption>>(new Set());
   const [appliedStatuses, setAppliedStatuses] = useState<Set<OrderStatus>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
 
   const [rows, setRows] = useState<AdminOrderRow[]>([]);
@@ -35,8 +36,7 @@ const OrderListPage: React.FC = () => {
       name: o.customerName ?? '—',
       address: o.shippingAddressSummary ?? '—',
       date,
-      typeLabel: 'Order',
-      typeKeys: ORDER_TYPE_OPTIONS.slice() as unknown as OrderTypeOption[],
+      paymentMethod: o.paymentMethod ?? '',
       status: mapBackendStatusToAdminStatus(o.status),
     };
   };
@@ -66,18 +66,19 @@ const OrderListPage: React.FC = () => {
     () =>
       filterOrders(rows, {
         dates: appliedDates,
-        types: appliedTypes,
+        paymentMethods: appliedPaymentMethods,
         statuses: appliedStatuses,
+        searchQuery,
       }),
-    [rows, appliedDates, appliedTypes, appliedStatuses],
+    [rows, appliedDates, appliedPaymentMethods, appliedStatuses, searchQuery],
   );
 
   /** Chỉ đúng 1 ngày đã apply → điều hướng Prev/Next Date thay cho phân trang số trang */
   const dateNavMode = appliedDates.length === 1;
 
   const navDates = useMemo(
-    () => datesAvailableForNav(rows, appliedTypes, appliedStatuses),
-    [rows, appliedTypes, appliedStatuses],
+    () => datesAvailableForNav(rows, appliedPaymentMethods, appliedStatuses, searchQuery),
+    [rows, appliedPaymentMethods, appliedStatuses, searchQuery],
   );
 
   const currentDateIdx = useMemo(() => {
@@ -99,8 +100,9 @@ const OrderListPage: React.FC = () => {
 
   const resetFilters = () => {
     setAppliedDates([]);
-    setAppliedTypes(new Set());
+    setAppliedPaymentMethods(new Set());
     setAppliedStatuses(new Set());
+    setSearchQuery('');
     setPage(1);
     setOpenPanel(null);
   };
@@ -136,14 +138,19 @@ const OrderListPage: React.FC = () => {
           setAppliedDates(d);
           setPage(1);
         }}
-        appliedTypes={appliedTypes}
-        onApplyTypes={(t) => {
-          setAppliedTypes(t);
+        appliedPaymentMethods={appliedPaymentMethods}
+        onApplyPaymentMethods={(t) => {
+          setAppliedPaymentMethods(t);
           setPage(1);
         }}
         appliedStatuses={appliedStatuses}
         onApplyStatuses={(s) => {
           setAppliedStatuses(s);
+          setPage(1);
+        }}
+        searchQuery={searchQuery}
+        setSearchQuery={(q) => {
+          setSearchQuery(q);
           setPage(1);
         }}
         onReset={resetFilters}

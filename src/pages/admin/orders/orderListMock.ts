@@ -9,19 +9,15 @@ export type OrderStatus =
   | 'On Hold'
   | 'In Transit';
 
-/** Các chip trong popup "Select Order Type" */
-export const ORDER_TYPE_OPTIONS = [
-  'Health & Medicine',
-  'Book & Stationary',
-  'Services & Industry',
-  'Fashion & Beauty',
-  'Home & Living',
-  'Electronics',
-  'Mobile & Phone',
-  'Accessories',
+export const PAYMENT_METHOD_OPTIONS = [
+  'cash_on_delivery',
+  'vnpay',
+  'momo',
+  'stripe',
+  'paypal',
 ] as const;
 
-export type OrderTypeOption = (typeof ORDER_TYPE_OPTIONS)[number];
+export type PaymentMethodOption = (typeof PAYMENT_METHOD_OPTIONS)[number];
 
 export type AdminOrderRow = {
   id: string;
@@ -29,10 +25,7 @@ export type AdminOrderRow = {
   address: string;
   /** Ngày đơn (local date) */
   date: Date;
-  /** Hiển thị cột TYPE (Electric, Book, …) */
-  typeLabel: string;
-  /** Một hoặc nhiều chip type khớp khi lọc */
-  typeKeys: OrderTypeOption[];
+  paymentMethod: string;
   status: OrderStatus;
 };
 

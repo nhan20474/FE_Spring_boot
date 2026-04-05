@@ -20,7 +20,7 @@ const OrderTable: React.FC<OrderTableProps> = ({ rows }) => {
             <th className="py-4 px-4">Khách hàng</th>
             <th className="py-4 px-4">Địa chỉ</th>
             <th className="py-4 px-4">Ngày đặt</th>
-            <th className="py-4 px-4">Loại</th>
+            <th className="py-4 px-4">Thanh toán</th>
             <th className="py-4 px-4">Trạng thái</th>
             <th className="py-4 px-4 text-right">Hành động</th>
           </tr>
@@ -39,7 +39,14 @@ const OrderTable: React.FC<OrderTableProps> = ({ rows }) => {
                 <td className="py-4 px-4 font-medium">{row.name}</td>
                 <td className="py-4 px-4 text-slate-700">{row.address}</td>
                 <td className="py-4 px-4 text-slate-700 whitespace-nowrap">{formatOrderDate(row.date)}</td>
-                <td className="py-4 px-4 text-slate-700">{row.typeLabel}</td>
+                <td className="py-4 px-4 text-slate-700">
+                  {row.paymentMethod === 'vnpay' ? 'VNPay' :
+                   row.paymentMethod === 'cash_on_delivery' ? 'COD' :
+                   row.paymentMethod === 'momo' ? 'MoMo' :
+                   row.paymentMethod === 'stripe' ? 'Stripe' :
+                   row.paymentMethod === 'paypal' ? 'PayPal' :
+                   row.paymentMethod || '—'}
+                </td>
                 <td className="py-4 px-4">
                   <OrderStatusBadge status={row.status} />
                 </td>
