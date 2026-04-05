@@ -39,6 +39,50 @@ const SHIPMENT_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'failed', label: 'Thất bại / lỗi' },
 ];
 
+const TERMINAL_ORDER_STATUSES = new Set([
+  'cancelled',
+  'rejected',
+  'refunded',
+  'returned',
+  'completed',
+]);
+
+/** Khớp backend OrderStatusService.ADMIN_TRANSITIONS */
+const ADMIN_STATUS_TRANSITIONS: Record<string, string[]> = {
+  pending: ['confirmed', 'rejected', 'cancelled'],
+  pending_payment: ['cancelled', 'rejected'],
+  paid: ['confirmed', 'rejected', 'cancelled'],
+  confirmed: ['processing', 'shipped', 'cancelled', 'rejected'],
+  processing: ['shipped', 'cancelled', 'rejected'],
+  shipping: ['shipped', 'delivered', 'completed', 'cancelled', 'rejected'],
+  shipped: ['delivered', 'completed', 'cancelled', 'rejected'],
+  delivered: ['completed', 'cancelled', 'rejected'],
+};
+
+function adminStatusOptionsForCurrent(currentRaw: string): OrderBackendStatusOption[] {
+  const cur = String(currentRaw ?? '').trim().toLowerCase();
+  if (!cur || TERMINAL_ORDER_STATUSES.has(cur)) {
+    return ADMIN_ORDER_STATUS_OPTIONS.filter((o) => o.value === cur);
+  }
+  const next = ADMIN_STATUS_TRANSITIONS[cur];
+  if (!next?.length) {
+    return ADMIN_ORDER_STATUS_OPTIONS.filter((o) => o.value === cur);
+  }
+  const allow = new Set<string>([cur, ...next]);
+  return ADMIN_ORDER_STATUS_OPTIONS.filter((o) => allow.has(o.value));
+}
+
+function isValidShipmentTrackingUrl(raw: string): boolean {
+  const t = raw.trim();
+  if (!t) return true;
+  try {
+    const u = new URL(t);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 const inputCls =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/25 focus:border-primary';
 
@@ -229,6 +273,10 @@ const OrderDetailPage: React.FC = () => {
   }, [orderId]);
 
   const currentBackendStatus = String(order?.status ?? 'pending').trim().toLowerCase();
+  const statusChangerOptions = useMemo(
+    () => adminStatusOptionsForCurrent(order?.status ?? ''),
+    [order?.status],
+  );
   const items = order?.items ?? [];
   const customerName = order?.customerName ?? '—';
   const address = order?.shippingAddressSummary ?? '—';
@@ -243,6 +291,16 @@ const OrderDetailPage: React.FC = () => {
 
   const handleApplyStatus = async (nextBackend: string) => {
     if (!orderId) return;
+    const next = String(nextBackend ?? '').trim().toLowerCase();
+    if (next === currentBackendStatus) {
+      setChangerOpen(false);
+      return;
+    }
+    const allowedValues = new Set(statusChangerOptions.map((o) => o.value));
+    if (!allowedValues.has(next)) {
+      setStatusError('Không được chuyển sang trạng thái này từ bước hiện tại. Kiểm tra quy trình đơn (ví dụ: xác nhận đơn trước khi thêm vận chuyển).');
+      return;
+    }
     try {
       setUpdating(true);
       setStatusError(null);
@@ -254,6 +312,7 @@ const OrderDetailPage: React.FC = () => {
       } catch {
         /* keep */
       }
+      await loadShipment();
       setChangerOpen(false);
     } catch (e) {
       const msg =
@@ -266,6 +325,19 @@ const OrderDetailPage: React.FC = () => {
 
   const handleSaveShipment = async () => {
     if (!orderId) return;
+    const carrierT = shipmentForm.carrier.trim();
+    if (carrierT.length > 0 && carrierT.length < 2) {
+      setShipmentMessage({ type: 'err', text: 'Tên đơn vị vận chuyển quá ngắn (tối thiểu 2 ký tự).' });
+      return;
+    }
+    const noteT = shipmentForm.note.trim();
+    if (noteT.length > 0 && !isValidShipmentTrackingUrl(noteT)) {
+      setShipmentMessage({
+        type: 'err',
+        text: 'Link tra cứu phải là URL http(s) hợp lệ. Nếu chưa có link, để trống hoặc dán đúng định dạng https://…',
+      });
+      return;
+    }
     setShipmentSaving(true);
     setShipmentMessage(null);
     try {
@@ -696,7 +768,7 @@ const OrderDetailPage: React.FC = () => {
       <OrderStatusChanger
         isOpen={changerOpen}
         currentValue={currentBackendStatus}
-        options={ADMIN_ORDER_STATUS_OPTIONS}
+        options={statusChangerOptions}
         onClose={() => setChangerOpen(false)}
         onApply={(next) => void handleApplyStatus(next)}
       />

@@ -7,6 +7,8 @@ import { adminGetOrders } from '@/services/backend';
 import type { AdminOrderDto } from '@/types/api';
 
 const PAGE_SIZE = 9;
+/** Khi bật lọc/tìm kiếm, tải batch để lọc client (điều hướng theo ngày cần đủ dữ liệu). */
+const FILTER_FETCH_SIZE = 500;
 
 const OrderListPage: React.FC = () => {
   const [openPanel, setOpenPanel] = useState<FilterPanel>(null);
@@ -18,6 +20,8 @@ const OrderListPage: React.FC = () => {
 
   const [rows, setRows] = useState<AdminOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
+  const [serverTotalElements, setServerTotalElements] = useState(0);
 
   const mapBackendStatusToAdminStatus = (statusRaw: string): OrderStatus => {
     const s = String(statusRaw ?? '').trim().toLowerCase();
@@ -44,17 +48,40 @@ const OrderListPage: React.FC = () => {
     };
   };
 
+  const needsClientFilterDataset =
+    appliedDates.length > 0 ||
+    appliedPaymentMethods.size > 0 ||
+    appliedStatuses.size > 0 ||
+    searchQuery.trim() !== '';
+
+  const filterKey = useMemo(
+    () =>
+      JSON.stringify({
+        dates: appliedDates.map((d) => d.toDateString()),
+        pm: [...appliedPaymentMethods].sort(),
+        st: [...appliedStatuses].sort(),
+        q: searchQuery.trim(),
+      }),
+    [appliedDates, appliedPaymentMethods, appliedStatuses, searchQuery],
+  );
+
   useEffect(() => {
+    if (!needsClientFilterDataset) return;
     let cancelled = false;
     setLoading(true);
-    adminGetOrders()
+    adminGetOrders({ page: 0, size: FILTER_FETCH_SIZE, sortDir: 'desc' })
       .then((res) => {
         if (cancelled) return;
         setRows((res.items ?? []).map(mapOrderDtoToRow));
+        const te = Number(res.total ?? res.totalElements ?? (res.items ?? []).length);
+        setServerTotalElements(Number.isFinite(te) ? te : 0);
+        setServerTotalPages(1);
       })
       .catch(() => {
         if (cancelled) return;
         setRows([]);
+        setServerTotalPages(1);
+        setServerTotalElements(0);
       })
       .finally(() => {
         if (cancelled) return;
@@ -63,7 +90,35 @@ const OrderListPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [filterKey, needsClientFilterDataset]);
+
+  useEffect(() => {
+    if (needsClientFilterDataset) return;
+    let cancelled = false;
+    setLoading(true);
+    adminGetOrders({ page: page - 1, size: PAGE_SIZE, sortDir: 'desc' })
+      .then((res) => {
+        if (cancelled) return;
+        setRows((res.items ?? []).map(mapOrderDtoToRow));
+        const tp = Number(res.totalPages);
+        const te = Number(res.total ?? res.totalElements ?? 0);
+        setServerTotalPages(Number.isFinite(tp) && tp >= 1 ? tp : 1);
+        setServerTotalElements(Number.isFinite(te) ? te : 0);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRows([]);
+        setServerTotalPages(1);
+        setServerTotalElements(0);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, needsClientFilterDataset]);
 
   const filtered = useMemo(
     () =>
@@ -91,11 +146,15 @@ const OrderListPage: React.FC = () => {
 
   const displayedRows = useMemo(() => {
     if (dateNavMode) return filtered;
-    const start = (page - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page, dateNavMode]);
+    if (needsClientFilterDataset) {
+      const start = (page - 1) * PAGE_SIZE;
+      return filtered.slice(start, start + PAGE_SIZE);
+    }
+    return filtered;
+  }, [filtered, dateNavMode, needsClientFilterDataset, page]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPagesClient = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = needsClientFilterDataset ? totalPagesClient : Math.max(1, serverTotalPages);
 
   useEffect(() => {
     setPage((p) => Math.min(p, totalPages));
@@ -110,9 +169,19 @@ const OrderListPage: React.FC = () => {
     setOpenPanel(null);
   };
 
-  const startIdx = filtered.length === 0 ? 0 : dateNavMode ? 1 : (page - 1) * PAGE_SIZE + 1;
+  const startIdx =
+    filtered.length === 0
+      ? 0
+      : dateNavMode
+        ? 1
+        : (page - 1) * PAGE_SIZE + 1;
   const endIdx =
-    filtered.length === 0 ? 0 : dateNavMode ? filtered.length : Math.min(page * PAGE_SIZE, filtered.length);
+    filtered.length === 0
+      ? 0
+      : dateNavMode
+        ? filtered.length
+        : Math.min(page * PAGE_SIZE, filtered.length);
+  const totalLabel = needsClientFilterDataset ? filtered.length : serverTotalElements;
 
   const goPrevDate = () => {
     if (currentDateIdx <= 0) return;
@@ -166,9 +235,11 @@ const OrderListPage: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 md:px-6 py-4 border-t border-slate-100 bg-slate-50/50">
           <p className="text-sm font-medium text-slate-500">
-            {filtered.length === 0
-              ? 'Hiển thị 0 trên 0'
-              : `Hiển thị ${String(startIdx).padStart(2, '0')}-${String(endIdx).padStart(2, '0')} trên ${filtered.length}`}
+            {loading
+              ? 'Đang tải…'
+              : filtered.length === 0
+                ? `Hiển thị 0 trên ${totalLabel}`
+                : `Hiển thị ${String(startIdx).padStart(2, '0')}-${String(endIdx).padStart(2, '0')} trên ${totalLabel}`}
           </p>
 
           {dateNavMode ? (

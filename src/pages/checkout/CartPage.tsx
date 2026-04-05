@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { formatVND, productDetailPath, shippingCostForNetMerchandiseVnd } from '@/utils';
+import { cartItemsQuoteSignature, toCheckoutLineItems } from '@/utils/checkoutLineItems';
 import { checkoutQuote } from '@/services/backend';
 import { getToken, isApiConfigured } from '@/services/api';
 
@@ -17,20 +18,9 @@ const CartPage: React.FC = () => {
   );
   const totalItems = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
 
-  const normalizedItems = useMemo(
-    () =>
-      items.map((i) => ({
-        productId: Number(i.productId),
-        quantity: Number(i.quantity),
-        price: Number(i.price),
-      })),
-    [items],
-  );
+  const lineItemsForQuote = useMemo(() => toCheckoutLineItems(items), [items]);
 
-  const quoteItemsKey = useMemo(
-    () => normalizedItems.map((i) => `${i.productId}:${i.quantity}:${i.price}`).join('|'),
-    [normalizedItems],
-  );
+  const quoteDeps = useMemo(() => cartItemsQuoteSignature(items), [items]);
 
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');
@@ -44,7 +34,7 @@ const CartPage: React.FC = () => {
     couponMessage: string;
   } | null>(null);
 
-  const canQuote = isApiConfigured() && Boolean(getToken()) && normalizedItems.length > 0;
+  const canQuote = isApiConfigured() && Boolean(getToken()) && lineItemsForQuote.length > 0;
 
   const fetchQuote = useCallback(
     async (couponCode: string) => {
@@ -55,7 +45,7 @@ const CartPage: React.FC = () => {
       setQuoting(true);
       try {
         const q = await checkoutQuote({
-          items: normalizedItems,
+          items: lineItemsForQuote,
           couponCode: couponCode.trim() || undefined,
         });
         setQuote({
@@ -72,12 +62,15 @@ const CartPage: React.FC = () => {
         setQuoting(false);
       }
     },
-    [canQuote, normalizedItems],
+    [canQuote, lineItemsForQuote],
   );
 
   useEffect(() => {
-    void fetchQuote(appliedCoupon);
-  }, [appliedCoupon, fetchQuote, quoteItemsKey]);
+    const t = window.setTimeout(() => {
+      void fetchQuote(appliedCoupon);
+    }, 380);
+    return () => window.clearTimeout(t);
+  }, [appliedCoupon, fetchQuote, quoteDeps]);
 
   const applyCoupon = () => {
     setAppliedCoupon(couponInput.trim());

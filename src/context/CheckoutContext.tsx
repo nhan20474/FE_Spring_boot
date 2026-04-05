@@ -25,6 +25,8 @@ export interface CheckoutData {
   quoteTotalPrice: number | null;
   quoteCouponApplied: boolean;
   quoteCouponMessage: string;
+  /** Thời điểm nhận báo giá từ server (để hết hạn cache ~5 phút). */
+  quoteFetchedAt: number | null;
   agreeToTerms: boolean;
   
   // Cart items
@@ -52,6 +54,7 @@ const defaultCheckoutData: CheckoutData = {
   quoteTotalPrice: null,
   quoteCouponApplied: false,
   quoteCouponMessage: '',
+  quoteFetchedAt: null,
   agreeToTerms: false,
   items: [],
 };

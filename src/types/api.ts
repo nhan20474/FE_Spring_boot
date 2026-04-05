@@ -70,7 +70,8 @@ export interface AuthResponse {
 export interface CreateOrderItemRequest {
   productId: number;
   quantity: number;
-  price: number;
+  /** Không gửi — backend lấy giá từ DB */
+  price?: number;
   selectedColor?: string | null;
   selectedStorage?: string | null;
 }

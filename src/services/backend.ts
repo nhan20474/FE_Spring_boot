@@ -75,9 +75,13 @@ interface InventoryReplayResponse {
 }
 
 export interface CheckoutQuoteRequest {
-  items?: Array<{ productId: number; quantity: number; price: number }>;
+  items?: Array<{
+    productId: number;
+    quantity: number;
+    selectedColor?: string;
+    selectedStorage?: string;
+  }>;
   couponCode?: string;
-  shippingCost?: number;
 }
 
 export interface CheckoutQuoteResponse {

@@ -5,6 +5,7 @@ import { formatVND } from '@/utils';
 import { isApiConfigured } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { getOrder, getAddresses } from '@/services/backend';
+import { ApiError } from '@/services/api';
 import type { OrderDto } from '@/types/api';
 import type { SavedAddress } from '@/types';
 import { addressDtoToSaved } from '@/services/addressMapper';
@@ -30,7 +31,7 @@ const OrderConfirmationPage: React.FC = () => {
   const orderIdFromUrl =
     state?.orderId ??
     (orderIdFromPath && /^\d+$/.test(orderIdFromPath) ? Number(orderIdFromPath) : undefined);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, isInitialized } = useAuth();
 
   const [apiOrder, setApiOrder] = useState<OrderDto | null>(null);
   const [apiShipping, setApiShipping] = useState<{
@@ -40,15 +41,34 @@ const OrderConfirmationPage: React.FC = () => {
     stateZip: string;
     country: string;
   } | null>(null);
+  const [orderLoadError, setOrderLoadError] = useState<string | null>(null);
+
+  const shouldFetchOrder =
+    orderIdFromUrl != null &&
+    Number.isFinite(orderIdFromUrl) &&
+    isInitialized &&
+    isApiConfigured() &&
+    isAuthenticated;
 
   useEffect(() => {
-    const orderId = orderIdFromUrl;
-    const fromApi = state?.fromApi ?? Boolean(orderIdFromPath && orderId);
-    if (!orderId || !fromApi) return;
-    if (!isApiConfigured() || !isAuthenticated) return;
+    setOrderLoadError(null);
+    if (!shouldFetchOrder || orderIdFromUrl == null) {
+      setApiOrder(null);
+      setApiShipping(null);
+      return;
+    }
 
-    getOrder(orderId)
+    let cancelled = false;
+
+    getOrder(orderIdFromUrl)
       .then(async (dto) => {
+        if (cancelled) return;
+        if (user?.id != null && dto.userId !== user.id) {
+          setApiOrder(null);
+          setApiShipping(null);
+          setOrderLoadError('Bạn không có quyền xem đơn hàng này.');
+          return;
+        }
         setApiOrder(dto);
 
         if (dto.shippingAddressId == null) {
@@ -81,11 +101,23 @@ const OrderConfirmationPage: React.FC = () => {
           setApiShipping(null);
         }
       })
-      .catch(() => {
+      .catch((e) => {
+        if (cancelled) return;
         setApiOrder(null);
         setApiShipping(null);
+        const msg =
+          e instanceof ApiError
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : 'Không tải được đơn hàng.';
+        setOrderLoadError(msg);
       });
-  }, [orderIdFromUrl, state?.fromApi, orderIdFromPath, isAuthenticated]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldFetchOrder, orderIdFromUrl, user?.id]);
 
   const order = orderConfirmationSample;
   const { delivery } = order;
@@ -96,6 +128,48 @@ const OrderConfirmationPage: React.FC = () => {
   }, [apiOrder?.paymentMethod]);
 
   const orderIdToShow = apiOrder?.id ? String(apiOrder.id) : String(order.orderId);
+
+  const lineItemsToRender = useMemo(() => {
+    if (apiOrder?.items?.length) {
+      return apiOrder.items.map((it, idx) => ({
+        key: `${it.productId ?? idx}-${idx}`,
+        name: it.productName,
+        image: it.productImage ?? '',
+        variant: [it.selectedColor, it.selectedStorage].filter(Boolean).join(' · ') || undefined,
+        quantity: it.quantity,
+        price: it.priceAtOrder,
+      }));
+    }
+    return orderConfirmationSample.lineItems.map((item) => ({
+      key: item.id,
+      name: item.name,
+      image: item.image,
+      variant: item.variant,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+  }, [apiOrder]);
+
+  const totals = useMemo(() => {
+    if (apiOrder) {
+      const subtotal = apiOrder.subtotal != null ? Number(apiOrder.subtotal) : null;
+      const shipping = apiOrder.shippingCost != null ? Number(apiOrder.shippingCost) : null;
+      const total = Number(apiOrder.totalPrice ?? 0);
+      return { subtotal, shipping, tax: 0, total };
+    }
+    return {
+      subtotal: orderConfirmationSample.subtotal,
+      shipping: orderConfirmationSample.shipping,
+      tax: orderConfirmationSample.tax,
+      total: orderConfirmationSample.total,
+    };
+  }, [apiOrder]);
+
+  const showSampleWhenNoApiOrder =
+    !apiOrder && (!orderIdFromUrl || !shouldFetchOrder) && !orderLoadError;
+
+  const showErrorForIntendedApi =
+    orderIdFromUrl != null && shouldFetchOrder && orderLoadError && !apiOrder;
 
   return (
     <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
@@ -129,6 +203,27 @@ const OrderConfirmationPage: React.FC = () => {
             Thanh toán VNPay đã được ghi nhận. Cảm ơn bạn!
           </div>
         )}
+
+        {showErrorForIntendedApi && (
+          <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {orderLoadError}
+            <div className="mt-2">
+              <Link to="/orders" className="font-semibold text-primary hover:underline">
+                Xem đơn hàng của tôi
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {orderIdFromUrl != null && !isAuthenticated && isInitialized && (
+          <div className="mb-8 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            Đăng nhập để xem chi tiết đơn #{orderIdFromUrl}.
+            <Link to="/login" className="ml-2 font-semibold text-primary hover:underline">
+              Đăng nhập
+            </Link>
+          </div>
+        )}
+
         {/* Success Header */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full mb-6">
@@ -137,6 +232,9 @@ const OrderConfirmationPage: React.FC = () => {
           <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-3">Cảm ơn bạn đã đặt hàng!</h1>
           <p className="text-lg text-slate-600 dark:text-slate-400">Đơn hàng #{orderIdToShow}</p>
           <p className="text-slate-500 dark:text-slate-500 mt-2">Email xác nhận đã được gửi đến hộp thư của bạn.</p>
+          {apiOrder?.status && (
+            <p className="text-sm text-slate-500 mt-2">Trạng thái: {apiOrder.status}</p>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -165,10 +263,13 @@ const OrderConfirmationPage: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="p-6 border-b border-slate-100 dark:border-slate-700">
                 <h2 className="font-bold text-lg text-slate-800 dark:text-white">Tóm tắt đơn hàng</h2>
+                {showSampleWhenNoApiOrder && (
+                  <p className="text-xs text-amber-600 mt-1">Đang hiển thị ví dụ — đặt hàng qua tài khoản để xem đơn thật.</p>
+                )}
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                {order.lineItems.map((item) => (
-                  <div key={item.id} className="p-6 flex gap-6 items-center">
+                {lineItemsToRender.map((item) => (
+                  <div key={item.key} className="p-6 flex gap-6 items-center">
                     <img
                       src={item.image}
                       alt={item.name}
@@ -176,13 +277,10 @@ const OrderConfirmationPage: React.FC = () => {
                     />
                     <div className="flex-1">
                       <h4 className="font-semibold text-slate-900 dark:text-white">{item.name}</h4>
-                      {item.description && (
-                        <p className="text-sm text-slate-500">{item.description}</p>
-                      )}
                       {item.variant && (
                         <p className="text-sm text-slate-500">{item.variant}</p>
                       )}
-                      <p className="text-sm text-slate-400 mt-1">Qty: {item.quantity}</p>
+                      <p className="text-sm text-slate-400 mt-1">SL: {item.quantity}</p>
                     </div>
                     <div className="text-right">
                       <span className="font-bold text-slate-900 dark:text-white">
@@ -195,20 +293,24 @@ const OrderConfirmationPage: React.FC = () => {
               <div className="bg-slate-50 dark:bg-slate-900/50 p-6 space-y-3">
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Tạm tính</span>
-                  <span>{formatVND(order.subtotal)}</span>
+                  <span>{totals.subtotal != null ? formatVND(totals.subtotal) : '—'}</span>
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Vận chuyển</span>
-                  <span className="text-green-600 font-medium">{order.shipping === 0 ? 'Miễn phí' : formatVND(order.shipping)}</span>
+                  <span className="text-green-600 font-medium">
+                    {totals.shipping === 0 ? 'Miễn phí' : totals.shipping != null ? formatVND(totals.shipping) : '—'}
+                  </span>
                 </div>
-                <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>Thuế</span>
-                  <span>{formatVND(order.tax)}</span>
-                </div>
+                {totals.tax > 0 && (
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Thuế</span>
+                    <span>{formatVND(totals.tax)}</span>
+                  </div>
+                )}
                 <div className="pt-3 mt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                   <span className="text-lg font-bold text-slate-900 dark:text-white">Tổng cộng</span>
                   <span className="text-2xl font-bold text-primary">
-                    {formatVND(order.total)}
+                    {formatVND(totals.total)}
                   </span>
                 </div>
               </div>
@@ -226,7 +328,9 @@ const OrderConfirmationPage: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Dự kiến giao</p>
-                  <p className="text-slate-700 dark:text-slate-200 font-medium">{delivery.estimatedDelivery}</p>
+                  <p className="text-slate-700 dark:text-slate-200 font-medium">
+                    {apiOrder ? '—' : delivery.estimatedDelivery}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Giao đến</p>

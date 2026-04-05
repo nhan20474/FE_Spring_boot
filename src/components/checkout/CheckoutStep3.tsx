@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCheckout } from '@/context/CheckoutContext';
 import { useAuth } from '@/context/AuthContext';
-import { createOrder, createVnpayPayment } from '@/services/backend';
+import { checkoutQuote, createOrder, createVnpayPayment } from '@/services/backend';
 import { isApiConfigured } from '@/services/api';
 import { ApiError } from '@/services/api';
 import { useCart } from '@/context/CartContext';
-import { shippingCostForNetMerchandiseVnd } from '@/utils';
+import { toCheckoutLineItems } from '@/utils/checkoutLineItems';
 import PaymentTabs, { type PaymentMethodType } from './PaymentTabs';
 
 import CheckoutSummary from './CheckoutSummary';
@@ -25,6 +25,7 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [orderError, setOrderError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
+  const placingRef = useRef(false);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -39,6 +40,7 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
 
   const handlePlaceOrder = async () => {
     if (!validateForm()) return;
+    if (placingRef.current) return;
     setOrderError(null);
     updateCheckoutData({
       paymentMethod: {
@@ -49,25 +51,7 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
 
     const { items } = checkoutData;
     const useBackend = isApiConfigured() && isAuthenticated && items.length > 0;
-    const normalizedItems = items.map((i) => ({
-      productId: Number(i.productId),
-      quantity: Number(i.quantity),
-      price: Number(i.price),
-      ...(i.selectedColor != null && String(i.selectedColor).trim() !== ''
-        ? { selectedColor: String(i.selectedColor).trim() }
-        : {}),
-      ...(i.selectedStorage != null && String(i.selectedStorage).trim() !== ''
-        ? { selectedStorage: String(i.selectedStorage).trim() }
-        : {}),
-    }));
-    const fallbackSubtotal = normalizedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    const subtotal = checkoutData.quoteSubtotal ?? fallbackSubtotal;
-    const discountAmount = checkoutData.quoteDiscountAmount ?? 0;
-    const netAfterDiscount = Math.max(0, subtotal - discountAmount);
-    const shippingCost =
-      checkoutData.quoteShippingCost ?? shippingCostForNetMerchandiseVnd(netAfterDiscount);
-    const totalPrice =
-      checkoutData.quoteTotalPrice ?? Math.max(0, subtotal - discountAmount + shippingCost);
+    const lineItems = toCheckoutLineItems(items);
 
     if (useBackend) {
       const { selectedAddress } = checkoutData;
@@ -77,26 +61,45 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
         return;
       }
 
-      const validItems = normalizedItems.every(
-        (i) =>
-          Number.isFinite(i.productId) &&
-          i.productId > 0 &&
-          Number.isFinite(i.quantity) &&
-          i.quantity >= 1 &&
-          Number.isFinite(i.price) &&
-          i.price >= 0,
+      const validItems = lineItems.every(
+        (i) => Number.isFinite(i.productId) && i.productId > 0 && Number.isFinite(i.quantity) && i.quantity >= 1,
       );
       if (!validItems) {
         setOrderError('Giỏ hàng đang có dữ liệu không hợp lệ để tạo đơn. Vui lòng thêm lại sản phẩm từ danh sách.');
         return;
       }
 
+      placingRef.current = true;
       setPlacing(true);
       try {
-        const couponCode =
+        const couponForQuote =
           checkoutData.quoteCouponApplied && checkoutData.couponCode.trim()
             ? checkoutData.couponCode.trim()
+            : undefined;
+        const fresh = await checkoutQuote({
+          items: lineItems,
+          couponCode: couponForQuote,
+        });
+        const subtotal = Number(fresh.subtotal ?? 0);
+        const discountAmount = Number(fresh.discountAmount ?? 0);
+        const shippingCost = Number(fresh.shippingCost ?? 0);
+        const totalPrice = Number(fresh.totalPrice ?? 0);
+        updateCheckoutData({
+          quoteSubtotal: subtotal,
+          quoteDiscountAmount: discountAmount,
+          quoteShippingCost: shippingCost,
+          quoteTotalPrice: totalPrice,
+          quoteCouponApplied: Boolean(fresh.couponApplied),
+          quoteCouponMessage: fresh.couponMessage ?? '',
+          couponCode: fresh.couponCode ?? checkoutData.couponCode,
+          quoteFetchedAt: Date.now(),
+        });
+
+        const couponForOrder =
+          discountAmount > 0
+            ? (fresh.couponCode ?? checkoutData.couponCode).trim() || null
             : null;
+
         const order = await createOrder({
           totalPrice,
           paymentMethod,
@@ -104,8 +107,8 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
           subtotal,
           discountAmount,
           shippingCost,
-          couponCode,
-          items: normalizedItems,
+          couponCode: couponForOrder,
+          items: lineItems,
         });
         if (paymentMethod !== 'vnpay') {
           clearCart();
@@ -119,11 +122,15 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
 
         navigate(`/order-confirmation/${order.id}`, { state: { orderId: order.id, fromApi: true } });
       } catch (err) {
-        setOrderError(err instanceof ApiError ? err.message : 'Failed to create order.');
-        if (err instanceof ApiError && err.status === 401) {
-          setOrderError('Please sign in to place an order.');
-        }
+        const msg =
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Không tạo được đơn hàng. Vui lòng thử lại.';
+        setOrderError(err instanceof ApiError && err.status === 401 ? 'Vui lòng đăng nhập để đặt hàng.' : msg);
       } finally {
+        placingRef.current = false;
         setPlacing(false);
       }
     } else {

@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useCheckout } from '@/context/CheckoutContext';
 import { formatVND, shippingCostForNetMerchandiseVnd } from '@/utils';
+import { cartItemsQuoteSignature, toCheckoutLineItems } from '@/utils/checkoutLineItems';
 import { getToken, isApiConfigured } from '@/services/api';
 import { checkoutQuote } from '@/services/backend';
+
+const QUOTE_TTL_MS = 5 * 60 * 1000;
 
 const CheckoutSummary: React.FC = () => {
   const { checkoutData, updateCheckoutData } = useCheckout();
@@ -17,24 +20,13 @@ const CheckoutSummary: React.FC = () => {
   const netAfterDiscount = Math.max(0, subtotal - discount);
   const shippingFallback = shippingCostForNetMerchandiseVnd(netAfterDiscount);
   const shipping = checkoutData.quoteShippingCost ?? shippingFallback;
-  const total = checkoutData.quoteTotalPrice ?? Math.max(0, subtotal - discount + shippingFallback);
+  const total = checkoutData.quoteTotalPrice ?? Math.max(0, subtotal - discount + shipping);
 
-  const normalizedItems = useMemo(
-    () =>
-      items.map((i) => ({
-        productId: Number(i.productId),
-        quantity: Number(i.quantity),
-        price: Number(i.price),
-      })),
-    [items]
-  );
-  const quoteItemsKey = useMemo(
-    () => normalizedItems.map((i) => `${i.productId}:${i.quantity}:${i.price}`).join('|'),
-    [normalizedItems]
-  );
+  const lineItemsForQuote = useMemo(() => toCheckoutLineItems(items), [items]);
+  const quoteDeps = useMemo(() => cartItemsQuoteSignature(items), [items]);
 
   const refreshQuote = async (couponCode?: string) => {
-    if (!isApiConfigured() || !getToken() || normalizedItems.length === 0) {
+    if (!isApiConfigured() || !getToken() || lineItemsForQuote.length === 0) {
       const ship = shippingCostForNetMerchandiseVnd(localSubtotal);
       updateCheckoutData({
         quoteSubtotal: localSubtotal,
@@ -43,13 +35,14 @@ const CheckoutSummary: React.FC = () => {
         quoteTotalPrice: Math.max(0, localSubtotal + ship),
         quoteCouponApplied: false,
         quoteCouponMessage: '',
+        quoteFetchedAt: null,
       });
       return;
     }
     setQuoting(true);
     try {
       const q = await checkoutQuote({
-        items: normalizedItems,
+        items: lineItemsForQuote,
         couponCode: (couponCode ?? checkoutData.couponCode) || undefined,
       });
       updateCheckoutData({
@@ -60,6 +53,7 @@ const CheckoutSummary: React.FC = () => {
         couponCode: q.couponCode ?? (couponCode ?? checkoutData.couponCode),
         quoteCouponApplied: Boolean(q.couponApplied),
         quoteCouponMessage: q.couponMessage ?? '',
+        quoteFetchedAt: Date.now(),
       });
     } finally {
       setQuoting(false);
@@ -67,9 +61,20 @@ const CheckoutSummary: React.FC = () => {
   };
 
   useEffect(() => {
+    const t = window.setTimeout(() => {
+      void refreshQuote();
+    }, 380);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteDeps, checkoutData.couponCode]);
+
+  useEffect(() => {
+    const at = checkoutData.quoteFetchedAt;
+    if (at == null || lineItemsForQuote.length === 0) return;
+    if (Date.now() - at <= QUOTE_TTL_MS) return;
     void refreshQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localSubtotal, quoteItemsKey]);
+  }, [checkoutData.quoteFetchedAt, quoteDeps]);
 
   const applyCoupon = async () => {
     const code = couponInput.trim();
