@@ -53,6 +53,12 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
       productId: Number(i.productId),
       quantity: Number(i.quantity),
       price: Number(i.price),
+      ...(i.selectedColor != null && String(i.selectedColor).trim() !== ''
+        ? { selectedColor: String(i.selectedColor).trim() }
+        : {}),
+      ...(i.selectedStorage != null && String(i.selectedStorage).trim() !== ''
+        ? { selectedStorage: String(i.selectedStorage).trim() }
+        : {}),
     }));
     const fallbackSubtotal = normalizedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const subtotal = checkoutData.quoteSubtotal ?? fallbackSubtotal;
@@ -87,6 +93,10 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
 
       setPlacing(true);
       try {
+        const couponCode =
+          checkoutData.quoteCouponApplied && checkoutData.couponCode.trim()
+            ? checkoutData.couponCode.trim()
+            : null;
         const order = await createOrder({
           totalPrice,
           paymentMethod,
@@ -94,9 +104,12 @@ const CheckoutStep3: React.FC<CheckoutStep3Props> = ({ onBack }) => {
           subtotal,
           discountAmount,
           shippingCost,
+          couponCode,
           items: normalizedItems,
         });
-        clearCart();
+        if (paymentMethod !== 'vnpay') {
+          clearCart();
+        }
 
         if (paymentMethod === 'vnpay') {
           const { paymentUrl } = await createVnpayPayment(order.id);

@@ -178,6 +178,9 @@ export interface CartItem {
   productId: string;
   name: string;
   variant?: string;
+  /** Từ API giỏ hàng — gửi lại khi đặt hàng */
+  selectedColor?: string | null;
+  selectedStorage?: string | null;
   price: number;
   quantity: number;
   image: string;

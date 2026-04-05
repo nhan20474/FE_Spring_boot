@@ -133,6 +133,8 @@ function mapCartDto(dto: CartDto): CartItem[] {
       (item.variant && String(item.variant).trim()) ||
       [item.selectedColor, item.selectedStorage].filter((x) => x && String(x).trim()).join(' · ') ||
       undefined,
+    selectedColor: item.selectedColor ?? undefined,
+    selectedStorage: item.selectedStorage ?? undefined,
     price: Number(item.priceAtAdd ?? 0),
     quantity: item.quantity ?? 1,
     image: item.productImage ?? '',

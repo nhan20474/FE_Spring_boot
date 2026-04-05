@@ -71,6 +71,8 @@ export interface CreateOrderItemRequest {
   productId: number;
   quantity: number;
   price: number;
+  selectedColor?: string | null;
+  selectedStorage?: string | null;
 }
 
 export interface CreateOrderRequest {
@@ -82,6 +84,8 @@ export interface CreateOrderRequest {
   shippingCost?: number | null;
   paymentMethod?: string | null;
   notes?: string | null;
+  /** Gửi kèm khi đã áp dụng mã — backend tính lại và bắt buộc khớp giảm giá */
+  couponCode?: string | null;
 }
 
 export interface OrderItemDto {
@@ -117,6 +121,7 @@ export interface OrderDto {
   shippingCost?: number | null;
   totalPrice: number;
   notes?: string | null;
+  couponCode?: string | null;
   status: string;
   paymentMethod?: string | null;
   createdAt: string;
@@ -191,6 +196,7 @@ export interface ReturnRequestDto {
 
 export interface UpdateAdminOrderStatusRequest {
   status: string;
+  reason?: string | null;
 }
 
 export interface ApiErrorBody {
