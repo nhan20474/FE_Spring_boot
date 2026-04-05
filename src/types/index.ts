@@ -119,6 +119,14 @@ export interface OrderDetailsData {
     last4: string;
     expires: string;
   };
+  /** Theo dõi vận chuyển (3PL) khi backend đã có shipment */
+  shipment?: {
+    carrier?: string | null;
+    trackingNumber?: string | null;
+    trackingUrl?: string | null;
+  } | null;
+  canCancel?: boolean;
+  canConfirmCodReceived?: boolean;
 }
 
 export interface SavedAddress {

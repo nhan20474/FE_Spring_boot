@@ -21,11 +21,14 @@ const OrderListPage: React.FC = () => {
 
   const mapBackendStatusToAdminStatus = (statusRaw: string): OrderStatus => {
     const s = String(statusRaw ?? '').trim().toLowerCase();
-    if (s === 'cancelled' || s === 'canceled' || s === 'reject') return 'Rejected';
-    if (s === 'paid' || s === 'completed') return 'Completed';
-    if (s === 'pending' || s === 'pending_payment') return 'Processing';
-    if (s === 'shipping' || s === 'shipped' || s === 'delivered') return 'In Transit';
-    if (s === 'returned' || s === 'refunded') return 'Rejected';
+    if (s === 'cancelled' || s === 'canceled' || s === 'rejected' || s === 'returned' || s === 'refunded') {
+      return 'Rejected';
+    }
+    if (s === 'completed' || s === 'delivered') return 'Completed';
+    if (s === 'paid' || s === 'confirmed' || s === 'processing' || s === 'pending' || s === 'pending_payment') {
+      return 'Processing';
+    }
+    if (s === 'shipping' || s === 'shipped') return 'In Transit';
     return 'Processing';
   };
 

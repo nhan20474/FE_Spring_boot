@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   adminGetOrder,
@@ -7,26 +7,124 @@ import {
   adminCreateReturn,
   adminUpdateReturnStatus,
   adminUpdateOrderStatus,
+  adminGetShipment,
+  adminUpsertShipment,
 } from '@/services/backend';
-import type {
-  AdminOrderDto,
-  OrderStatusHistoryDto,
-  ReturnRequestDto,
-  UpdateAdminOrderStatusRequest,
-} from '@/types/api';
+import { ApiError } from '@/services/api';
+import type { AdminOrderDto, OrderStatusHistoryDto, ReturnRequestDto, ShipmentDto } from '@/types/api';
 import { formatDate } from '@/utils/formatDate';
 import { formatVND } from '@/utils';
-import { OrderStatusBadge as UiOrderStatusBadge, type OrderStatus } from '@/components/admin/OrderStatusBadge';
-import OrderStatusChanger from '@/components/admin/OrderStatusChanger';
+import OrderStatusChanger, { type OrderBackendStatusOption } from '@/components/admin/OrderStatusChanger';
+
+const ADMIN_ORDER_STATUS_OPTIONS: OrderBackendStatusOption[] = [
+  { value: 'pending', label: 'Chờ xác nhận' },
+  { value: 'pending_payment', label: 'Chờ thanh toán (VNPay)' },
+  { value: 'paid', label: 'Đã thanh toán online' },
+  { value: 'confirmed', label: 'Đã xác nhận có hàng' },
+  { value: 'processing', label: 'Đang chuẩn bị / đóng gói' },
+  { value: 'shipped', label: 'Đã giao cho đơn vị vận chuyển' },
+  { value: 'shipping', label: 'Đang giao (legacy)' },
+  { value: 'delivered', label: 'Đã giao tới khách' },
+  { value: 'completed', label: 'Hoàn tất' },
+  { value: 'cancelled', label: 'Đã hủy' },
+  { value: 'rejected', label: 'Từ chối đơn' },
+  { value: 'returned', label: 'Trả hàng' },
+  { value: 'refunded', label: 'Hoàn tiền' },
+];
+
+const SHIPMENT_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'pending', label: 'Chờ gửi' },
+  { value: 'shipping', label: 'Đang vận chuyển' },
+  { value: 'delivered', label: 'Đã giao' },
+  { value: 'failed', label: 'Thất bại / lỗi' },
+];
+
+const inputCls =
+  'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/25 focus:border-primary';
+
+const btnIcon =
+  'inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50';
+
+function backendOrderStatusLabel(statusRaw: string): string {
+  const s = String(statusRaw ?? '').trim().toLowerCase();
+  const hit = ADMIN_ORDER_STATUS_OPTIONS.find((o) => o.value === s);
+  return hit?.label ?? statusRaw;
+}
+
+function adminOrderStatusBadgeClass(statusRaw: string): string {
+  const s = String(statusRaw ?? '').trim().toLowerCase();
+  if (s === 'completed' || s === 'delivered') return 'admin-badge completed';
+  if (s === 'cancelled' || s === 'rejected' || s === 'refunded' || s === 'returned') return 'admin-badge rejected';
+  if (s === 'shipped' || s === 'shipping' || s === 'paid' || s === 'confirmed' || s === 'processing')
+    return 'admin-badge processing';
+  return 'admin-badge processing';
+}
+
+function paymentMethodLabel(raw?: string | null): string {
+  const m = String(raw ?? '').trim().toLowerCase();
+  if (!m) return '—';
+  const map: Record<string, string> = {
+    cash_on_delivery: 'Thanh toán khi nhận hàng (COD)',
+    vnpay: 'VNPay',
+    credit_card: 'Thẻ',
+    paypal: 'PayPal',
+    momo: 'MoMo',
+  };
+  return map[m] ?? raw ?? '—';
+}
+
+function SectionCard({
+  icon,
+  title,
+  subtitle,
+  children,
+  className = '',
+}: {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`rounded-lg border border-slate-200 bg-white ${className}`}>
+      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+        <span className="material-icons text-primary text-xl shrink-0" aria-hidden>
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+          {subtitle ? <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p> : null}
+        </div>
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-4 text-sm">
+      <span className="text-slate-500 shrink-0">{label}</span>
+      <span className="font-medium text-slate-900 text-right tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function FlashMessage({ type, text }: { type: 'ok' | 'err'; text: string }) {
+  const cls =
+    type === 'ok'
+      ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
+      : 'bg-red-50 text-red-700 border-red-100';
+  return <div className={`mb-3 rounded-md border px-3 py-2 text-sm ${cls}`}>{text}</div>;
+}
 
 const OrderDetailPage: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
 
   const invoiceHref =
-    orderId != null
-      ? `/admin/orders/invoice?orderId=${encodeURIComponent(orderId)}`
-      : '/admin/orders/invoice';
+    orderId != null ? `/admin/orders/invoice?orderId=${encodeURIComponent(orderId)}` : '/admin/orders/invoice';
 
   const handleDownloadPdf = () => {
     if (orderId == null) return;
@@ -43,42 +141,38 @@ const OrderDetailPage: React.FC = () => {
   const [returnSubmitting, setReturnSubmitting] = useState(false);
   const [returnStatusUpdatingId, setReturnStatusUpdatingId] = useState<number | null>(null);
 
+  const [shipment, setShipment] = useState<ShipmentDto | null>(null);
+  const [shipmentLoading, setShipmentLoading] = useState(false);
+  const [shipmentSaving, setShipmentSaving] = useState(false);
+  const [shipmentForm, setShipmentForm] = useState({
+    carrier: '',
+    trackingNumber: '',
+    note: '',
+    status: 'pending',
+  });
+  const [shipmentMessage, setShipmentMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
   const [returnError, setReturnError] = useState<string | null>(null);
   const [changerOpen, setChangerOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
-  const statusOptionsForChanger: OrderStatus[] = useMemo(
-    () => ['Processing', 'Shipping', 'Completed', 'Rejected'],
-    [],
-  );
-
-  const mapBackendStatusToAdminStatus = (statusRaw: string): OrderStatus => {
-    const s = String(statusRaw ?? '').trim().toLowerCase();
-    if (s === 'cancelled' || s === 'canceled' || s === 'reject') return 'Rejected';
-    if (s === 'paid' || s === 'completed') return 'Completed';
-    if (s === 'pending' || s === 'pending_payment' || s === 'processing') return 'Processing';
-    if (s === 'shipping') return 'Shipping';
-    if (s === 'shipped' || s === 'delivered') return 'In Transit';
-    if (s === 'returned' || s === 'refunded') return 'Rejected';
-    return 'Processing';
-  };
-
-  const mapAdminStatusToBackendStatus = (adminStatus: OrderStatus): string => {
-    switch (adminStatus) {
-      case 'Completed':
-        return 'paid';
-      case 'Processing':
-        return 'pending';
-      case 'Rejected':
-        return 'cancelled';
-      case 'In Transit':
-        return 'shipping';
-      case 'Shipping':
-        return 'shipping';
-      default:
-        return 'pending';
+  const loadShipment = useCallback(async () => {
+    if (!orderId) {
+      setShipment(null);
+      return;
     }
-  };
+    setShipmentLoading(true);
+    setShipmentMessage(null);
+    try {
+      const s = await adminGetShipment(orderId);
+      setShipment(s);
+    } catch {
+      setShipment(null);
+    } finally {
+      setShipmentLoading(false);
+    }
+  }, [orderId]);
 
   useEffect(() => {
     if (!orderId) {
@@ -92,6 +186,23 @@ const OrderDetailPage: React.FC = () => {
       .catch(() => setOrder(null))
       .finally(() => setLoading(false));
   }, [orderId]);
+
+  useEffect(() => {
+    void loadShipment();
+  }, [loadShipment]);
+
+  useEffect(() => {
+    if (!shipment) {
+      setShipmentForm({ carrier: '', trackingNumber: '', note: '', status: 'pending' });
+      return;
+    }
+    setShipmentForm({
+      carrier: shipment.carrier ?? '',
+      trackingNumber: shipment.trackingNumber ?? '',
+      note: shipment.note ?? '',
+      status: shipment.status ?? 'pending',
+    });
+  }, [shipment]);
 
   useEffect(() => {
     if (!orderId) {
@@ -117,38 +228,63 @@ const OrderDetailPage: React.FC = () => {
       .finally(() => setReturnsLoading(false));
   }, [orderId]);
 
-  const currentStatus: OrderStatus = mapBackendStatusToAdminStatus(order?.status ?? 'pending');
-
+  const currentBackendStatus = String(order?.status ?? 'pending').trim().toLowerCase();
   const items = order?.items ?? [];
   const customerName = order?.customerName ?? '—';
   const address = order?.shippingAddressSummary ?? '—';
-  const orderDate = order?.createdAt ? new Date(order.createdAt) : null;
-  const typeLabel = 'Order';
+  const subtotal = order?.subtotal != null ? Number(order.subtotal) : null;
+  const discount = order?.discountAmount != null ? Number(order.discountAmount) : null;
+  const shippingCost = order?.shippingCost != null ? Number(order.shippingCost) : null;
 
   const totalCost = useMemo(() => {
     if (order?.totalPrice != null) return Number(order.totalPrice);
     return items.reduce((sum, i) => sum + i.quantity * i.priceAtOrder, 0);
   }, [items, order?.totalPrice]);
 
-  const handleApplyStatus = async (nextStatus: OrderStatus) => {
+  const handleApplyStatus = async (nextBackend: string) => {
     if (!orderId) return;
     try {
       setUpdating(true);
-      const backendStatus = mapAdminStatusToBackendStatus(nextStatus);
-      const body: UpdateAdminOrderStatusRequest = { status: backendStatus };
-      const updated = await adminUpdateOrderStatus(orderId, body);
+      setStatusError(null);
+      const updated = await adminUpdateOrderStatus(orderId, { status: nextBackend });
       setOrder(updated);
       try {
         const rows = await adminGetOrderStatusHistory(orderId);
         setStatusHistory(rows);
       } catch {
-        /* keep previous history */
+        /* keep */
       }
       setChangerOpen(false);
-    } catch {
-      // keep modal open; user can retry
+    } catch (e) {
+      const msg =
+        e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Không cập nhật được trạng thái';
+      setStatusError(msg);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleSaveShipment = async () => {
+    if (!orderId) return;
+    setShipmentSaving(true);
+    setShipmentMessage(null);
+    try {
+      const saved = await adminUpsertShipment(orderId, {
+        carrier: shipmentForm.carrier.trim() || undefined,
+        trackingNumber: shipmentForm.trackingNumber.trim() || undefined,
+        note: shipmentForm.note.trim() || undefined,
+        status: shipmentForm.status || undefined,
+      });
+      setShipment(saved);
+      setShipmentMessage({
+        type: 'ok',
+        text: 'Đã lưu. Nhớ đổi trạng thái đơn sang «Đã giao shipper» khi bàn giao.',
+      });
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Không lưu được vận chuyển';
+      setShipmentMessage({ type: 'err', text: msg });
+    } finally {
+      setShipmentSaving(false);
     }
   };
 
@@ -186,6 +322,8 @@ const OrderDetailPage: React.FC = () => {
       await adminUpdateReturnStatus(returnId, { status });
       const rows = await adminGetOrderReturns(orderId);
       setReturns(rows);
+      const o = await adminGetOrder(orderId);
+      setOrder(o);
     } catch (e) {
       setReturnError(e instanceof Error ? e.message : 'Không cập nhật được trạng thái trả hàng');
     } finally {
@@ -193,214 +331,300 @@ const OrderDetailPage: React.FC = () => {
     }
   };
 
-  const inputCls =
-    'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/30 focus:border-primary';
+  const labelCls = 'block text-xs font-medium text-slate-600 mb-1';
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+    <div className="max-w-5xl mx-auto space-y-5 pb-10">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900">Chi tiết đơn hàng</h1>
-          <p className="text-xs font-semibold text-slate-500">
-            Mã đơn: <span className="font-bold text-slate-700">{orderId ?? '(placeholder)'}</span>
+          <Link to="/admin/orders" className="text-xs text-slate-500 hover:text-primary mb-1 inline-block">
+            ← Danh sách đơn
+          </Link>
+          <h1 className="text-xl font-semibold text-slate-900">Đơn #{orderId ?? '—'}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {order?.createdAt ? `Đặt lúc ${formatDate(order.createdAt)}` : loading ? 'Đang tải…' : '—'}
           </p>
         </div>
+        {orderId != null && (
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to={invoiceHref}
+              className={`${btnIcon} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
+            >
+              <span className="material-icons text-lg">description</span>
+              Hóa đơn
+            </Link>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              className={`${btnIcon} border-primary/30 bg-primary/5 text-primary hover:bg-primary/10`}
+            >
+              <span className="material-icons text-lg">picture_as_pdf</span>
+              Tải PDF
+            </button>
+          </div>
+        )}
+      </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {orderId != null && (
-            <>
-              <Link
-                to={invoiceHref}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-icons text-[18px]">description</span>
-                Tạo hóa đơn
-              </Link>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
-              >
-                <span className="material-icons text-[18px]">picture_as_pdf</span>
-                Tải PDF
-              </button>
-            </>
-          )}
-          <Link
-            to="/admin/orders"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <span className="material-icons text-[18px]">arrow_back</span>
-            Quay lại
-          </Link>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="space-y-5">
+          <SectionCard icon="flag" title="Trạng thái" subtitle="Chỉ chuyển khi đúng bước xử lý.">
+            {loading && !order ? (
+              <p className="text-sm text-slate-500">Đang tải đơn…</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={adminOrderStatusBadgeClass(order?.status ?? '')}>
+                    {backendOrderStatusLabel(order?.status ?? '—')}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">{currentBackendStatus}</span>
+                </div>
+                <p className="text-sm text-slate-600">
+                  Thanh toán: <span className="text-slate-900">{paymentMethodLabel(order?.paymentMethod)}</span>
+                  {order?.notes ? (
+                    <>
+                      <br />
+                      <span className="text-slate-500">Ghi chú:</span> {order.notes}
+                    </>
+                  ) : null}
+                </p>
+                {statusError && <p className="text-sm text-red-600">{statusError}</p>}
+                {orderId != null && (
+                  <button
+                    type="button"
+                    disabled={updating}
+                    onClick={() => {
+                      setStatusError(null);
+                      setChangerOpen(true);
+                    }}
+                    className={`${btnIcon} bg-primary text-white border-primary hover:opacity-90`}
+                  >
+                    <span className="material-icons text-lg">sync_alt</span>
+                    Đổi trạng thái
+                  </button>
+                )}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard icon="inventory_2" title="Sản phẩm">
+            {loading ? (
+              <p className="text-sm text-slate-500">Đang tải…</p>
+            ) : items.length === 0 ? (
+              <p className="text-sm text-slate-500">Không có sản phẩm.</p>
+            ) : (
+              <div className="overflow-x-auto -mx-1">
+                <table className="w-full min-w-[480px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                      <th className="pb-2 pr-2 font-medium">Sản phẩm</th>
+                      <th className="pb-2 pr-2 font-medium">Biến thể</th>
+                      <th className="pb-2 pr-2 font-medium text-right w-12">SL</th>
+                      <th className="pb-2 pr-2 font-medium text-right">Đơn giá</th>
+                      <th className="pb-2 font-medium text-right">Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((it, idx) => {
+                      const lineTotal = it.lineTotal ?? it.quantity * it.priceAtOrder;
+                      const variant = [it.selectedColor, it.selectedStorage].filter(Boolean).join(' · ') || '—';
+                      return (
+                        <tr
+                          key={it.productId != null ? String(it.productId) : String(idx)}
+                          className="border-b border-slate-100 last:border-0"
+                        >
+                          <td className="py-2.5 pr-2 text-slate-900">{it.productName}</td>
+                          <td className="py-2.5 pr-2 text-slate-600">{variant}</td>
+                          <td className="py-2.5 pr-2 text-right tabular-nums">{it.quantity}</td>
+                          <td className="py-2.5 pr-2 text-right tabular-nums">{formatVND(it.priceAtOrder)}</td>
+                          <td className="py-2.5 text-right font-medium tabular-nums">{formatVND(lineTotal)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+        </div>
+
+        <div className="space-y-5">
+          <SectionCard icon="person" title="Khách & giao hàng">
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Tên khách</p>
+                <p className="font-medium text-slate-900">{customerName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Địa chỉ</p>
+                <p className="text-slate-700 leading-relaxed">{address}</p>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard icon="payments" title="Thanh toán">
+            <div className="space-y-2">
+              <DetailRow label="Tạm tính" value={subtotal != null ? formatVND(subtotal) : '—'} />
+              <DetailRow
+                label="Giảm giá"
+                value={discount != null ? (discount > 0 ? `−${formatVND(discount)}` : formatVND(0)) : '—'}
+              />
+              <DetailRow
+                label="Phí ship"
+                value={shippingCost != null ? (shippingCost === 0 ? 'Miễn phí' : formatVND(shippingCost)) : '—'}
+              />
+              <div className="border-t border-slate-100 pt-3 mt-2 flex justify-between items-baseline gap-4">
+                <span className="text-sm font-semibold text-slate-900">Tổng</span>
+                <span className="text-lg font-semibold text-primary tabular-nums">{formatVND(totalCost)}</span>
+              </div>
+            </div>
+          </SectionCard>
         </div>
       </div>
 
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <div className="text-sm font-bold text-slate-900">Chi tiết đơn hàng</div>
-          <div className="text-xs font-semibold text-slate-500">Hiển thị khách hàng + sản phẩm + trạng thái</div>
-        </div>
-
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-bold text-slate-900">Khách hàng / Địa chỉ giao hàng</div>
-            <div className="mt-2 space-y-2 text-xs font-semibold text-slate-500">
-              <div>
-                Khách hàng: <span className="font-bold text-slate-700">{customerName}</span>
-              </div>
-              <div>
-                Địa chỉ: <span className="font-bold text-slate-700">{address}</span>
-              </div>
-              <div>
-                Loại đơn: <span className="font-bold text-slate-700">{typeLabel}</span>
-              </div>
-              <div>
-                Ngày đặt:{' '}
-                <span className="font-bold text-slate-700">{orderDate ? orderDate.toLocaleDateString('en-GB') : '—'}</span>
-              </div>
+      <SectionCard icon="local_shipping" title="Vận chuyển" subtitle="Đơn vị, mã vận đơn, link tra cứu.">
+        {shipmentLoading ? (
+          <p className="text-sm text-slate-500">Đang tải…</p>
+        ) : (
+          <>
+            {shipmentMessage && <FlashMessage type={shipmentMessage.type} text={shipmentMessage.text} />}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="block">
+                <span className={labelCls}>Đơn vị</span>
+                <input
+                  className={inputCls}
+                  value={shipmentForm.carrier}
+                  onChange={(e) => setShipmentForm((f) => ({ ...f, carrier: e.target.value }))}
+                  placeholder="GHTK, GHN…"
+                />
+              </label>
+              <label className="block">
+                <span className={labelCls}>Mã vận đơn</span>
+                <input
+                  className={inputCls}
+                  value={shipmentForm.trackingNumber}
+                  onChange={(e) => setShipmentForm((f) => ({ ...f, trackingNumber: e.target.value }))}
+                  placeholder="Tracking"
+                />
+              </label>
+              <label className="block sm:col-span-2">
+                <span className={labelCls}>Link tra cứu</span>
+                <input
+                  className={`${inputCls} font-mono text-xs`}
+                  value={shipmentForm.note}
+                  onChange={(e) => setShipmentForm((f) => ({ ...f, note: e.target.value }))}
+                  placeholder="https://…"
+                />
+              </label>
+              <label className="block sm:col-span-2">
+                <span className={labelCls}>Trạng thái shipment</span>
+                <select
+                  className={inputCls}
+                  value={shipmentForm.status}
+                  onChange={(e) => setShipmentForm((f) => ({ ...f, status: e.target.value }))}
+                >
+                  {SHIPMENT_STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-bold text-slate-900">Sản phẩm</div>
-            {loading ? (
-              <div className="mt-2 text-xs font-semibold text-slate-500">Đang tải...</div>
-            ) : items.length === 0 ? (
-              <div className="mt-2 text-xs font-semibold text-slate-500">Không có sản phẩm nào.</div>
-            ) : (
-              <div className="mt-2">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-left text-xs">
-                    <thead>
-                      <tr className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">
-                        <th className="py-2 px-2">Sản phẩm</th>
-                        <th className="py-2 px-2 text-right">SL</th>
-                        <th className="py-2 px-2 text-right">Đơn giá</th>
-                        <th className="py-2 px-2 text-right">Thành tiền</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((it, idx) => {
-                        const lineTotal = it.lineTotal ?? it.quantity * it.priceAtOrder;
-                        return (
-                          <tr key={it.productId != null ? String(it.productId) : String(idx)} className="border-t border-slate-100">
-                            <td className="py-2 px-2 font-medium text-slate-800">{it.productName}</td>
-                            <td className="py-2 px-2 text-right text-slate-700">{it.quantity}</td>
-                            <td className="py-2 px-2 text-right text-slate-700">{formatVND(it.priceAtOrder)}</td>
-                            <td className="py-2 px-2 text-right text-slate-900 font-bold">{formatVND(lineTotal)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="flex justify-end pt-2">
-                  <div className="text-xs font-semibold text-slate-700">
-                    Tổng: <span className="font-extrabold text-slate-900">{formatVND(totalCost)}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-bold text-slate-900">Trạng thái / Hóa đơn</div>
-            <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3 flex-wrap">
-                <UiOrderStatusBadge status={currentStatus} />
-              </div>
-
-              <div className="flex items-center gap-2">
-                {orderId != null && (
-                  <Link
-                    to={invoiceHref}
-                    className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    <span className="material-icons text-[16px]">receipt_long</span>
-                    Xem hóa đơn
-                  </Link>
-                )}
-              </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={!orderId || shipmentSaving}
+                onClick={() => void handleSaveShipment()}
+                className={`${btnIcon} border-slate-900 bg-slate-900 text-white hover:bg-slate-800`}
+              >
+                <span className="material-icons text-lg">save</span>
+                {shipmentSaving ? 'Đang lưu…' : 'Lưu'}
+              </button>
+              <button
+                type="button"
+                disabled={shipmentLoading}
+                onClick={() => void loadShipment()}
+                className="text-sm text-primary hover:underline disabled:opacity-50"
+              >
+                Tải lại
+              </button>
             </div>
-          </div>
-        </div>
-      </section>
+          </>
+        )}
+      </SectionCard>
 
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <div className="text-sm font-bold text-slate-900">Lịch sử trạng thái</div>
-          <div className="text-xs font-semibold text-slate-500">Theo dõi từ API (audit)</div>
-        </div>
-        <div className="p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <SectionCard icon="history" title="Lịch sử trạng thái">
           {historyLoading ? (
-            <p className="text-xs font-semibold text-slate-500">Đang tải lịch sử…</p>
+            <p className="text-sm text-slate-500">Đang tải…</p>
           ) : statusHistory.length === 0 ? (
-            <p className="text-xs font-semibold text-slate-500">Chưa có bản ghi lịch sử cho đơn này.</p>
+            <p className="text-sm text-slate-500">Chưa có dữ liệu.</p>
           ) : (
-            <ul className="space-y-4 border-l-2 border-primary/30 ml-1 pl-4">
+            <ul className="space-y-3 border-l-2 border-slate-200 pl-4 ml-1">
               {statusHistory.map((h, idx) => (
                 <li key={`${h.changedAt}-${idx}`} className="relative">
-                  <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" aria-hidden />
-                  <div className="text-xs font-bold text-slate-900">
-                    {h.oldStatus} → {h.newStatus}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
+                  <span
+                    className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-white"
+                    aria-hidden
+                  />
+                  <p className="text-sm text-slate-900">
+                    <span className="text-slate-600">{backendOrderStatusLabel(h.oldStatus)}</span>
+                    <span className="mx-1 text-slate-300">→</span>
+                    {backendOrderStatusLabel(h.newStatus)}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
                     {h.actor} · {formatDate(h.changedAt)}
-                  </div>
-                  {h.note && <p className="text-xs text-slate-600 mt-1">{h.note}</p>}
+                  </p>
+                  {h.note ? <p className="text-sm text-slate-600 mt-1 bg-slate-50 rounded px-2 py-1.5">{h.note}</p> : null}
                 </li>
               ))}
             </ul>
           )}
-        </div>
-      </section>
+        </SectionCard>
 
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <div className="text-sm font-bold text-slate-900">Trả hàng / hoàn tiền</div>
-          <div className="text-xs font-semibold text-slate-500">GET/POST orders/&#123;id&#125;/returns · PATCH /api/admin/returns/&#123;id&#125;/status</div>
-        </div>
-        <div className="p-6 space-y-4">
+        <SectionCard icon="assignment_return" title="Trả hàng">
+          {returnError && <p className="text-sm text-red-600 mb-3">{returnError}</p>}
           {returnsLoading ? (
-            <p className="text-xs font-semibold text-slate-500">Đang tải yêu cầu trả…</p>
+            <p className="text-sm text-slate-500">Đang tải…</p>
           ) : returns.length === 0 ? (
-            <p className="text-xs font-semibold text-slate-500">Chưa có yêu cầu trả hàng.</p>
+            <p className="text-sm text-slate-500 mb-4">Chưa có yêu cầu.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-xs">
+            <div className="overflow-x-auto -mx-1 mb-4">
+              <table className="w-full min-w-[440px] text-sm">
                 <thead>
-                  <tr className="text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-100">
-                    <th className="py-2 pr-2">ID</th>
-                    <th className="py-2 pr-2">Trạng thái</th>
-                    <th className="py-2 pr-2">Lý do</th>
-                    <th className="py-2 pr-2 text-right">Hoàn</th>
-                    <th className="py-2 pr-2">Kho</th>
-                    <th className="py-2 pr-2">Cập nhật</th>
-                    <th className="py-2 text-right">Thao tác</th>
+                  <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                    <th className="pb-2 pr-2 font-medium">ID</th>
+                    <th className="pb-2 pr-2 font-medium">Trạng thái</th>
+                    <th className="pb-2 pr-2 font-medium">Lý do</th>
+                    <th className="pb-2 pr-2 font-medium text-right">Hoàn</th>
+                    <th className="pb-2 pr-2 font-medium">Kho</th>
+                    <th className="pb-2 font-medium text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {returns.map((r) => {
                     const st = String(r.status ?? '').toLowerCase();
                     const busy = returnStatusUpdatingId === r.id;
+                    const btnReturn = 'rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-40';
                     return (
-                      <tr key={r.id} className="border-b border-slate-50">
-                        <td className="py-2 pr-2 font-mono">{r.id}</td>
-                        <td className="py-2 pr-2 font-semibold text-slate-800">{r.status}</td>
-                        <td className="py-2 pr-2 text-slate-600">{r.reason ?? '—'}</td>
-                        <td className="py-2 pr-2 text-right">
+                      <tr key={r.id} className="border-b border-slate-100">
+                        <td className="py-2 pr-2 font-mono text-slate-600">{r.id}</td>
+                        <td className="py-2 pr-2">{r.status}</td>
+                        <td className="py-2 pr-2 text-slate-600 max-w-[120px] truncate" title={r.reason ?? ''}>
+                          {r.reason ?? '—'}
+                        </td>
+                        <td className="py-2 pr-2 text-right tabular-nums">
                           {r.refundAmount != null ? formatVND(r.refundAmount) : '—'}
                         </td>
-                        <td className="py-2 pr-2">{r.restocked ? 'Đã nhập kho' : '—'}</td>
-                        <td className="py-2 pr-2 text-slate-500">{formatDate(r.updatedAt)}</td>
-                        <td className="py-2 text-right">
+                        <td className="py-2 pr-2">{r.restocked ? 'Có' : '—'}</td>
+                        <td className="py-2">
                           <div className="flex flex-wrap gap-1 justify-end">
                             <button
                               type="button"
                               disabled={busy || st === 'approved'}
                               onClick={() => void handlePatchReturnStatus(r.id, 'approved')}
-                              className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 disabled:opacity-40"
+                              className={`${btnReturn} border-emerald-200 bg-emerald-50 text-emerald-800`}
                             >
                               Duyệt
                             </button>
@@ -408,7 +632,7 @@ const OrderDetailPage: React.FC = () => {
                               type="button"
                               disabled={busy || st === 'rejected'}
                               onClick={() => void handlePatchReturnStatus(r.id, 'rejected')}
-                              className="rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-800 disabled:opacity-40"
+                              className={`${btnReturn} border-rose-200 bg-rose-50 text-rose-800`}
                             >
                               Từ chối
                             </button>
@@ -416,7 +640,7 @@ const OrderDetailPage: React.FC = () => {
                               type="button"
                               disabled={busy || st === 'refunded'}
                               onClick={() => void handlePatchReturnStatus(r.id, 'refunded')}
-                              className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-800 disabled:opacity-40"
+                              className={`${btnReturn} border-slate-200 bg-slate-50 text-slate-800`}
                             >
                               Hoàn tiền
                             </button>
@@ -430,22 +654,21 @@ const OrderDetailPage: React.FC = () => {
             </div>
           )}
 
-          <div className="border-t border-slate-100 pt-4 mt-2">
-            <div className="text-xs font-bold text-slate-800 mb-2">Tạo yêu cầu trả</div>
-            {returnError && <p className="text-xs text-red-600 mb-2">{returnError}</p>}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <label className="block text-[11px] font-bold text-slate-600 sm:col-span-3">
-                Lý do
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-sm font-medium text-slate-900 mb-3">Tạo yêu cầu trả</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block sm:col-span-2">
+                <span className={labelCls}>Lý do</span>
                 <input
-                  className={`mt-1 ${inputCls}`}
+                  className={inputCls}
                   value={returnForm.reason}
                   onChange={(e) => setReturnForm((f) => ({ ...f, reason: e.target.value }))}
                 />
               </label>
-              <label className="block text-[11px] font-bold text-slate-600">
-                Số tiền hoàn (tùy chọn)
+              <label className="block">
+                <span className={labelCls}>Số tiền hoàn (tuỳ chọn)</span>
                 <input
-                  className={`mt-1 ${inputCls}`}
+                  className={inputCls}
                   type="number"
                   min={0}
                   step="1"
@@ -453,31 +676,27 @@ const OrderDetailPage: React.FC = () => {
                   onChange={(e) => setReturnForm((f) => ({ ...f, refundAmount: e.target.value }))}
                 />
               </label>
-              <label className="block text-[11px] font-bold text-slate-600 sm:col-span-2">
-                Ghi chú
-                <input
-                  className={`mt-1 ${inputCls}`}
-                  value={returnForm.note}
-                  onChange={(e) => setReturnForm((f) => ({ ...f, note: e.target.value }))}
-                />
+              <label className="block sm:col-span-2">
+                <span className={labelCls}>Ghi chú</span>
+                <input className={inputCls} value={returnForm.note} onChange={(e) => setReturnForm((f) => ({ ...f, note: e.target.value }))} />
               </label>
             </div>
             <button
               type="button"
               onClick={() => void handleCreateReturn()}
               disabled={!orderId || returnSubmitting}
-              className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+              className={`${btnIcon} mt-3 border-slate-200 bg-white text-slate-800 hover:bg-slate-50`}
             >
-              {returnSubmitting ? 'Đang gửi…' : 'Gửi yêu cầu trả'}
+              {returnSubmitting ? 'Đang gửi…' : 'Gửi yêu cầu'}
             </button>
           </div>
-        </div>
-      </section>
+        </SectionCard>
+      </div>
 
       <OrderStatusChanger
         isOpen={changerOpen}
-        currentStatus={currentStatus}
-        statuses={statusOptionsForChanger}
+        currentValue={currentBackendStatus}
+        options={ADMIN_ORDER_STATUS_OPTIONS}
         onClose={() => setChangerOpen(false)}
         onApply={(next) => void handleApplyStatus(next)}
       />
@@ -486,4 +705,3 @@ const OrderDetailPage: React.FC = () => {
 };
 
 export default OrderDetailPage;
-

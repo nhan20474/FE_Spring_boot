@@ -74,7 +74,9 @@ const DashboardPage: React.FC = () => {
         <div className="lg:col-span-1 rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Doanh thu (ước tính từ đơn)</p>
           <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{revenueLabel}</p>
-          <p className="mt-2 text-xs text-slate-500">Theo logic backend: paid, shipping, completed, returned, refunded.</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Ước tính doanh thu: paid, confirmed, processing, shipping, shipped, delivered, completed, returned, refunded (trừ hoàn).
+          </p>
         </div>
         <div className="lg:col-span-2">
           <OrdersByStatusPanel ordersByStatus={summary.ordersByStatus} />

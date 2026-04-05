@@ -1,29 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-import type { OrderStatus } from './OrderStatusBadge';
+export type OrderBackendStatusOption = { value: string; label: string };
 
 type OrderStatusChangerProps = {
   isOpen: boolean;
-  currentStatus: OrderStatus;
-  statuses: OrderStatus[];
+  options: OrderBackendStatusOption[];
+  currentValue: string;
   onClose: () => void;
-  onApply: (nextStatus: OrderStatus) => void;
+  onApply: (nextBackendValue: string) => void;
 };
 
 export default function OrderStatusChanger({
   isOpen,
-  currentStatus,
-  statuses,
+  options,
+  currentValue,
   onClose,
   onApply,
 }: OrderStatusChangerProps) {
-  const [selected, setSelected] = useState<OrderStatus>(currentStatus);
+  const [selected, setSelected] = useState(currentValue);
 
   useEffect(() => {
-    if (isOpen) setSelected(currentStatus);
-  }, [isOpen, currentStatus]);
+    if (isOpen) setSelected(currentValue);
+  }, [isOpen, currentValue]);
 
-  const title = useMemo(() => 'Chọn trạng thái đơn', []);
+  const title = useMemo(() => 'Chọn trạng thái đơn (backend)', []);
 
   if (!isOpen) return null;
 
@@ -31,18 +31,21 @@ export default function OrderStatusChanger({
     <div className="admin-modal-backdrop" onMouseDown={onClose} role="dialog" aria-modal="true" aria-label={title}>
       <div className="admin-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="admin-modal-title">{title}</div>
+        <p className="text-[11px] text-slate-500 mb-3">
+          Chỉ các chuyển trạng thái hợp lệ mới được API chấp nhận (theo quy trình đơn).
+        </p>
 
-        <div className="admin-chip-grid">
-          {statuses.map((s) => {
-            const active = s === selected;
+        <div className="admin-chip-grid max-h-[50vh] overflow-y-auto">
+          {options.map((opt) => {
+            const active = opt.value === selected;
             return (
               <button
-                key={s}
+                key={opt.value}
                 type="button"
                 className={`admin-chip${active ? ' active' : ''}`}
-                onClick={() => setSelected(s)}
+                onClick={() => setSelected(opt.value)}
               >
-                {s}
+                {opt.label}
               </button>
             );
           })}
@@ -52,14 +55,7 @@ export default function OrderStatusChanger({
           <button className="admin-btn secondary" type="button" onClick={onClose}>
             Hủy
           </button>
-          <button
-            className="admin-btn"
-            type="button"
-            onClick={() => {
-              onApply(selected);
-              onClose();
-            }}
-          >
+          <button className="admin-btn" type="button" onClick={() => onApply(selected)}>
             Áp dụng
           </button>
         </div>
@@ -67,4 +63,3 @@ export default function OrderStatusChanger({
     </div>
   );
 }
-

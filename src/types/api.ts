@@ -95,6 +95,19 @@ export interface OrderItemDto {
   selectedStorage?: string | null;
 }
 
+/** GET /api/orders — shipment kèm theo đơn (nếu có). */
+export interface ShipmentDto {
+  id: number;
+  orderId: number;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  status?: string | null;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+  /** URL tra cứu vận đơn đầy đủ (theo quy ước nội bộ). */
+  note?: string | null;
+}
+
 export interface OrderDto {
   id: number;
   userId: number;
@@ -108,6 +121,7 @@ export interface OrderDto {
   paymentMethod?: string | null;
   createdAt: string;
   items: OrderItemDto[];
+  shipment?: ShipmentDto | null;
 }
 
 /** Admin order payload used by /api/admin/orders */
@@ -144,6 +158,14 @@ export interface AdminOrdersResponse {
   total: number;
   totalElements?: number;
   totalPages?: number;
+}
+
+/** PUT /api/admin/orders/{orderId}/shipment — chỉ field gửi lên mới được cập nhật (null = bỏ qua). */
+export interface UpsertShipmentRequest {
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  status?: string | null;
+  note?: string | null;
 }
 
 export interface OrderStatusHistoryDto {

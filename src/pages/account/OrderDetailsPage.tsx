@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getOrderDetails } from '@/data';
-import { getOrder, receiveOrder, getAddresses } from '@/services/backend';
+import { getOrder, receiveOrder, cancelOrder, getAddresses } from '@/services/backend';
 import { isApiConfigured } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { formatVND } from '@/utils';
@@ -19,17 +19,19 @@ const PLACEHOLDER_IMG = 'https://picsum.photos/100/100?random=product';
 function statusToLabel(status: string): string {
   const s = String(status ?? '').trim().toUpperCase();
   const map: Record<string, string> = {
-    PENDING: 'Đang xử lý',
+    PENDING: 'Chờ xác nhận',
     PENDING_PAYMENT: 'Chờ thanh toán',
-    PROCESSING: 'Đang xử lý',
+    CONFIRMED: 'Đã xác nhận',
+    PROCESSING: 'Đang chuẩn bị hàng',
     PAID: 'Đã thanh toán',
     COMPLETED: 'Hoàn tất',
-    SHIPPED: 'Đã giao',
-    SHIPPING: 'Đang giao',
+    SHIPPED: 'Đã giao cho shipper',
+    SHIPPING: 'Đang giao hàng',
     RETURNED: 'Đã trả hàng',
     REFUNDED: 'Đã hoàn tiền',
-    DELIVERED: 'Đã giao',
+    DELIVERED: 'Đã giao tới',
     CANCELLED: 'Đã hủy',
+    REJECTED: 'Đã từ chối',
   };
   return map[s] || status;
 }
@@ -73,6 +75,7 @@ function mapSavedAddressToShipping(saved?: SavedAddress | null): OrderDetailsDat
 function mapOrderDtoToDetails(dto: OrderDto, shippingAddress?: SavedAddress | null): OrderDetailsData {
   const placedDate = formatDate(dto.createdAt);
   const statusRaw = dto.status ?? null;
+  const st = String(dto.status ?? '').trim().toLowerCase();
   const lineItems = dto.items.map((item) => ({
     name: item.productName,
     image: item.productImage || PLACEHOLDER_IMG,
@@ -81,6 +84,16 @@ function mapOrderDtoToDetails(dto: OrderDto, shippingAddress?: SavedAddress | nu
     price: Number(item.priceAtOrder),
   }));
   const subtotal = lineItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const ship = dto.shipment;
+  const shipment =
+    ship && (ship.carrier || ship.trackingNumber || ship.note)
+      ? {
+          carrier: ship.carrier ?? null,
+          trackingNumber: ship.trackingNumber ?? null,
+          trackingUrl: ship.note?.trim() ? ship.note.trim() : null,
+        }
+      : null;
+  const cod = String(dto.paymentMethod ?? '').trim().toLowerCase() === 'cash_on_delivery';
   return {
     orderId: String(dto.id),
     placedDate,
@@ -91,21 +104,22 @@ function mapOrderDtoToDetails(dto: OrderDto, shippingAddress?: SavedAddress | nu
       {
         label: 'Trạng thái',
         sublabel: statusToLabel(dto.status),
-        completed: !['PENDING', 'PENDING_PAYMENT'].includes(
-          String(dto.status ?? '').trim().toUpperCase()
-        ),
+        completed: !['PENDING', 'PENDING_PAYMENT'].includes(String(dto.status ?? '').trim().toUpperCase()),
         active: true,
         icon: 'local_shipping',
       },
     ],
     lineItems,
     subtotal,
-    shipping: 0,
+    shipping: Number(dto.shippingCost ?? 0),
     tax: 0,
     total: Number(dto.totalPrice),
     shippingAddress: mapSavedAddressToShipping(shippingAddress),
     payment: paymentMethodToBrand(dto.paymentMethod),
     paymentMethodRaw: dto.paymentMethod ?? null,
+    shipment,
+    canCancel: st === 'pending' || st === 'pending_payment',
+    canConfirmCodReceived: cod && (st === 'shipped' || st === 'shipping'),
   };
 }
 
@@ -118,6 +132,8 @@ const OrderDetailsPage: React.FC = () => {
   const [addressesCache, setAddressesCache] = useState<SavedAddress[]>([]);
   const [receiving, setReceiving] = useState(false);
   const [receiveError, setReceiveError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!orderId) {
@@ -149,9 +165,7 @@ const OrderDetailsPage: React.FC = () => {
     }
   }, [orderId, isAuthenticated]);
 
-  const canReceiveAndPay =
-    String(order?.statusRaw ?? '').trim().toUpperCase() === 'PENDING' &&
-    String(order?.paymentMethodRaw ?? '').trim().toLowerCase() === 'cash_on_delivery';
+  const canReceiveAndPay = Boolean(order?.canConfirmCodReceived);
 
   const handleReceiveAndPay = async () => {
     if (!order || !canReceiveAndPay) return;
@@ -179,6 +193,38 @@ const OrderDetailsPage: React.FC = () => {
       setReceiveError(err instanceof Error ? err.message : 'Không thể ghi nhận đã nhận hàng.');
     } finally {
       setReceiving(false);
+    }
+  };
+
+  const canCancelOrder = Boolean(order?.canCancel);
+
+  const handleCancelOrder = async () => {
+    if (!order || !canCancelOrder) return;
+    if (!window.confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
+    setCancelError(null);
+    setCancelling(true);
+    try {
+      const dto = await cancelOrder(order.orderId);
+      let shipping: SavedAddress | null = null;
+      try {
+        if (dto.shippingAddressId != null) {
+          shipping =
+            addressesCache.find((a) => Number(a.id) === Number(dto.shippingAddressId)) ?? null;
+          if (!shipping) {
+            const addrDtos = await getAddresses();
+            const savedList = addrDtos.map(addressDtoToSaved);
+            setAddressesCache(savedList);
+            shipping = savedList.find((a) => Number(a.id) === Number(dto.shippingAddressId)) ?? null;
+          }
+        }
+      } catch {
+        /* — */
+      }
+      setOrder(mapOrderDtoToDetails(dto, shipping));
+    } catch (err: unknown) {
+      setCancelError(err instanceof Error ? err.message : 'Không thể hủy đơn.');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -248,7 +294,17 @@ const OrderDetailsPage: React.FC = () => {
                     onClick={handleReceiveAndPay}
                     className="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:pointer-events-none"
                   >
-                    {receiving ? 'Đang ghi nhận...' : 'Đã nhận hàng - Thanh toán'}
+                    {receiving ? 'Đang ghi nhận...' : 'Đã nhận hàng (COD)'}
+                  </button>
+                )}
+                {canCancelOrder && (
+                  <button
+                    type="button"
+                    disabled={cancelling}
+                    onClick={() => void handleCancelOrder()}
+                    className="px-5 py-2.5 border-2 border-red-200 text-red-700 dark:text-red-300 dark:border-red-800 text-sm font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-60"
+                  >
+                    {cancelling ? 'Đang hủy...' : 'Hủy đơn'}
                   </button>
                 )}
               </div>
@@ -256,6 +312,11 @@ const OrderDetailsPage: React.FC = () => {
             {receiveError && (
               <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
                 {receiveError}
+              </div>
+            )}
+            {cancelError && (
+              <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
+                {cancelError}
               </div>
             )}
           </div>
@@ -360,6 +421,41 @@ const OrderDetailsPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {order.shipment && (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05),0_2px_10px_-2px_rgba(0,0,0,0.03)] p-6">
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <span className="material-icons text-primary text-xl">local_shipping</span>
+                    Vận chuyển
+                  </h3>
+                  <div className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                    {order.shipment.carrier && (
+                      <p>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">Đơn vị: </span>
+                        {order.shipment.carrier}
+                      </p>
+                    )}
+                    {order.shipment.trackingNumber && (
+                      <p>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">Mã vận đơn: </span>
+                        {order.shipment.trackingNumber}
+                      </p>
+                    )}
+                    {order.shipment.trackingUrl && (
+                      <p>
+                        <a
+                          href={order.shipment.trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary font-semibold hover:underline break-all"
+                        >
+                          Tra cứu vận đơn
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05),0_2px_10px_-2px_rgba(0,0,0,0.03)] p-6">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-4">Địa chỉ giao hàng</h3>

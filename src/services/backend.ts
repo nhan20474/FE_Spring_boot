@@ -25,6 +25,8 @@ import type {
   AdminOrdersResponse,
   OrderStatusHistoryDto,
   UpdateAdminOrderStatusRequest,
+  UpsertShipmentRequest,
+  ShipmentDto,
   OrderDto,
   ProfileDto,
   CartDto,
@@ -513,6 +515,30 @@ export async function adminUpdateOrderStatus(
   return apiPatch<AdminOrderDto>(`/admin/orders/${orderId}/status`, body, { auth: true });
 }
 
+/**
+ * GET /api/admin/orders/{orderId}/shipment
+ * Backend trả { shipment: null } khi chưa có, hoặc body phẳng ShipmentDto khi đã có.
+ */
+export async function adminGetShipment(orderId: number | string): Promise<ShipmentDto | null> {
+  type Wrapped = { shipment: ShipmentDto | null };
+  const raw = await apiGet<ShipmentDto | Wrapped>(`/admin/orders/${orderId}/shipment`, { auth: true });
+  if (raw && typeof raw === 'object' && 'shipment' in raw) {
+    return (raw as Wrapped).shipment ?? null;
+  }
+  if (raw && typeof raw === 'object' && 'orderId' in raw) {
+    return raw as ShipmentDto;
+  }
+  return null;
+}
+
+/** PUT /api/admin/orders/{orderId}/shipment */
+export async function adminUpsertShipment(
+  orderId: number | string,
+  body: UpsertShipmentRequest,
+): Promise<ShipmentDto> {
+  return apiPut<ShipmentDto>(`/admin/orders/${orderId}/shipment`, body, { auth: true });
+}
+
 export interface InventoryStockDto {
   productId: number;
   stock: number;
@@ -629,6 +655,11 @@ export async function checkoutQuote(body: CheckoutQuoteRequest): Promise<Checkou
 /** PATCH /api/orders/{id}/receive — COD: customer confirms received */
 export async function receiveOrder(orderId: number | string): Promise<OrderDto> {
   return apiPatch<OrderDto>(`/orders/${orderId}/receive`, {}, { auth: true });
+}
+
+/** PATCH /api/orders/{id}/cancel — khách hủy (chỉ pending / pending_payment) */
+export async function cancelOrder(orderId: number | string): Promise<OrderDto> {
+  return apiPatch<OrderDto>(`/orders/${orderId}/cancel`, {}, { auth: true });
 }
 
 /** Logout: clear token and user from storage (no backend call). */
