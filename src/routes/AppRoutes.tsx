@@ -1,6 +1,5 @@
 import React from 'react';
 import { Navigate, Routes, Route } from 'react-router-dom';
-import PrivateRoute from '@/routes/PrivateRoute';
 import MainLayout from '@/components/layout/MainLayout';
 import HomePage from '@/pages/store/HomePage';
 import SearchResults from '@/pages/store/SearchResults';
@@ -18,12 +17,14 @@ import CheckoutPage from '@/pages/checkout/CheckoutPage';
 import LoginPage from '@/pages/auth/LoginPage';
 import OrderHistoryPage from '@/pages/account/OrderHistoryPage';
 import OrderDetailsPage from '@/pages/account/OrderDetailsPage';
+import OrderInvoicePage from '@/pages/account/OrderInvoicePage';
 import SavedAddressesPage from '@/pages/account/SavedAddressesPage';
 import WishlistPage from '@/pages/account/WishlistPage';
 import SignUpPage from '@/pages/auth/SignUpPage';
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import PrivateRoute from '@/routes/PrivateRoute';
 import AdminLayout from '@/pages/admin/AdminLayout';
 import DashboardPage from '@/pages/admin/DashboardPage';
 import AdminProfilePage from '@/pages/admin/AdminProfilePage';
@@ -61,6 +62,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
     <Route path="/reset-password" element={<ResetPasswordPage />} />
     <Route path="/orders" element={<OrderHistoryPage />} />
+    <Route path="/order/:orderId/invoice" element={<PrivateRoute><OrderInvoicePage /></PrivateRoute>} />
     <Route path="/order/:orderId" element={<OrderDetailsPage />} />
     <Route path="/account/addresses" element={<SavedAddressesPage />} />
     <Route path="/wishlist" element={<WishlistPage />} />

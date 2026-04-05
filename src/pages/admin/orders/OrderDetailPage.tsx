@@ -4,7 +4,6 @@ import {
   adminGetOrder,
   adminGetOrderReturns,
   adminGetOrderStatusHistory,
-  adminCreateReturn,
   adminUpdateReturnStatus,
   adminUpdateOrderStatus,
   adminGetShipment,
@@ -14,23 +13,15 @@ import { ApiError } from '@/services/api';
 import type { AdminOrderDto, OrderStatusHistoryDto, ReturnRequestDto, ShipmentDto } from '@/types/api';
 import { formatDate } from '@/utils/formatDate';
 import { formatVND } from '@/utils';
-import OrderStatusChanger, { type OrderBackendStatusOption } from '@/components/admin/OrderStatusChanger';
-
-const ADMIN_ORDER_STATUS_OPTIONS: OrderBackendStatusOption[] = [
-  { value: 'pending', label: 'Chờ xác nhận' },
-  { value: 'pending_payment', label: 'Chờ thanh toán (VNPay)' },
-  { value: 'paid', label: 'Đã thanh toán online' },
-  { value: 'confirmed', label: 'Đã xác nhận có hàng' },
-  { value: 'processing', label: 'Đang chuẩn bị / đóng gói' },
-  { value: 'shipped', label: 'Đã giao cho đơn vị vận chuyển' },
-  { value: 'shipping', label: 'Đang giao (legacy)' },
-  { value: 'delivered', label: 'Đã giao tới khách' },
-  { value: 'completed', label: 'Hoàn tất' },
-  { value: 'cancelled', label: 'Đã hủy' },
-  { value: 'rejected', label: 'Từ chối đơn' },
-  { value: 'returned', label: 'Trả hàng' },
-  { value: 'refunded', label: 'Hoàn tiền' },
-];
+import OrderStatusChanger from '@/components/admin/OrderStatusChanger';
+import {
+  ORDER_STATUS_OPTIONS,
+  orderStatusLabel,
+  paymentMethodLabel,
+  formatOrderHistoryActor,
+  returnRequestStatusLabel,
+  type OrderStatusOption,
+} from '@/utils/orderDisplay';
 
 const SHIPMENT_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'pending', label: 'Chờ gửi' },
@@ -59,17 +50,17 @@ const ADMIN_STATUS_TRANSITIONS: Record<string, string[]> = {
   delivered: ['completed', 'cancelled', 'rejected'],
 };
 
-function adminStatusOptionsForCurrent(currentRaw: string): OrderBackendStatusOption[] {
+function adminStatusOptionsForCurrent(currentRaw: string): OrderStatusOption[] {
   const cur = String(currentRaw ?? '').trim().toLowerCase();
   if (!cur || TERMINAL_ORDER_STATUSES.has(cur)) {
-    return ADMIN_ORDER_STATUS_OPTIONS.filter((o) => o.value === cur);
+    return ORDER_STATUS_OPTIONS.filter((o) => o.value === cur);
   }
   const next = ADMIN_STATUS_TRANSITIONS[cur];
   if (!next?.length) {
-    return ADMIN_ORDER_STATUS_OPTIONS.filter((o) => o.value === cur);
+    return ORDER_STATUS_OPTIONS.filter((o) => o.value === cur);
   }
   const allow = new Set<string>([cur, ...next]);
-  return ADMIN_ORDER_STATUS_OPTIONS.filter((o) => allow.has(o.value));
+  return ORDER_STATUS_OPTIONS.filter((o) => allow.has(o.value));
 }
 
 function isValidShipmentTrackingUrl(raw: string): boolean {
@@ -89,12 +80,6 @@ const inputCls =
 const btnIcon =
   'inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50';
 
-function backendOrderStatusLabel(statusRaw: string): string {
-  const s = String(statusRaw ?? '').trim().toLowerCase();
-  const hit = ADMIN_ORDER_STATUS_OPTIONS.find((o) => o.value === s);
-  return hit?.label ?? statusRaw;
-}
-
 function adminOrderStatusBadgeClass(statusRaw: string): string {
   const s = String(statusRaw ?? '').trim().toLowerCase();
   if (s === 'completed' || s === 'delivered') return 'admin-badge completed';
@@ -102,19 +87,6 @@ function adminOrderStatusBadgeClass(statusRaw: string): string {
   if (s === 'shipped' || s === 'shipping' || s === 'paid' || s === 'confirmed' || s === 'processing')
     return 'admin-badge processing';
   return 'admin-badge processing';
-}
-
-function paymentMethodLabel(raw?: string | null): string {
-  const m = String(raw ?? '').trim().toLowerCase();
-  if (!m) return '—';
-  const map: Record<string, string> = {
-    cash_on_delivery: 'Thanh toán khi nhận hàng (COD)',
-    vnpay: 'VNPay',
-    credit_card: 'Thẻ',
-    paypal: 'PayPal',
-    momo: 'MoMo',
-  };
-  return map[m] ?? raw ?? '—';
 }
 
 function SectionCard({
@@ -181,8 +153,6 @@ const OrderDetailPage: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [returns, setReturns] = useState<ReturnRequestDto[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
-  const [returnForm, setReturnForm] = useState({ reason: '', refundAmount: '', note: '' });
-  const [returnSubmitting, setReturnSubmitting] = useState(false);
   const [returnStatusUpdatingId, setReturnStatusUpdatingId] = useState<number | null>(null);
 
   const [shipment, setShipment] = useState<ShipmentDto | null>(null);
@@ -360,32 +330,6 @@ const OrderDetailPage: React.FC = () => {
     }
   };
 
-  const handleCreateReturn = async () => {
-    if (!orderId) return;
-    setReturnError(null);
-    const amt = returnForm.refundAmount.trim();
-    const refundAmount = amt === '' ? undefined : Number(amt);
-    if (amt !== '' && !Number.isFinite(refundAmount)) {
-      setReturnError('Số tiền hoàn không hợp lệ');
-      return;
-    }
-    setReturnSubmitting(true);
-    try {
-      await adminCreateReturn(orderId, {
-        reason: returnForm.reason.trim() || undefined,
-        refundAmount,
-        note: returnForm.note.trim() || undefined,
-      });
-      const rows = await adminGetOrderReturns(orderId);
-      setReturns(rows);
-      setReturnForm({ reason: '', refundAmount: '', note: '' });
-    } catch (e) {
-      setReturnError(e instanceof Error ? e.message : 'Không tạo được yêu cầu trả hàng');
-    } finally {
-      setReturnSubmitting(false);
-    }
-  };
-
   const handlePatchReturnStatus = async (returnId: number, status: 'approved' | 'rejected' | 'refunded') => {
     if (!orderId) return;
     setReturnError(null);
@@ -447,7 +391,7 @@ const OrderDetailPage: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={adminOrderStatusBadgeClass(order?.status ?? '')}>
-                    {backendOrderStatusLabel(order?.status ?? '—')}
+                    {orderStatusLabel(order?.status ?? '—')}
                   </span>
                   <span className="text-xs text-slate-400 font-mono">{currentBackendStatus}</span>
                 </div>
@@ -539,8 +483,13 @@ const OrderDetailPage: React.FC = () => {
               <DetailRow label="Tạm tính" value={subtotal != null ? formatVND(subtotal) : '—'} />
               <DetailRow
                 label="Giảm giá"
-                value={discount != null ? (discount > 0 ? `−${formatVND(discount)}` : formatVND(0)) : '—'}
+                value={
+                  discount != null ? (discount > 0 ? `−${formatVND(discount)}` : formatVND(0)) : '—'
+                }
               />
+              {order?.couponCode ? (
+                <DetailRow label="Mã giảm giá" value={<span className="font-mono text-xs">{order.couponCode}</span>} />
+              ) : null}
               <DetailRow
                 label="Phí ship"
                 value={shippingCost != null ? (shippingCost === 0 ? 'Miễn phí' : formatVND(shippingCost)) : '—'}
@@ -641,12 +590,12 @@ const OrderDetailPage: React.FC = () => {
                     aria-hidden
                   />
                   <p className="text-sm text-slate-900">
-                    <span className="text-slate-600">{backendOrderStatusLabel(h.oldStatus)}</span>
+                    <span className="text-slate-600">{orderStatusLabel(h.oldStatus)}</span>
                     <span className="mx-1 text-slate-300">→</span>
-                    {backendOrderStatusLabel(h.newStatus)}
+                    {orderStatusLabel(h.newStatus)}
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {h.actor} · {formatDate(h.changedAt)}
+                    {formatOrderHistoryActor(h.actor)} · {formatDate(h.changedAt)}
                   </p>
                   {h.note ? <p className="text-sm text-slate-600 mt-1 bg-slate-50 rounded px-2 py-1.5">{h.note}</p> : null}
                 </li>
@@ -655,12 +604,19 @@ const OrderDetailPage: React.FC = () => {
           )}
         </SectionCard>
 
-        <SectionCard icon="assignment_return" title="Trả hàng">
+        <SectionCard
+          icon="assignment_return"
+          title="Trả hàng"
+          subtitle="Chỉ xử lý khi khách đã gửi yêu cầu từ tài khoản. Admin không tạo yêu cầu thay khách."
+        >
           {returnError && <p className="text-sm text-red-600 mb-3">{returnError}</p>}
           {returnsLoading ? (
             <p className="text-sm text-slate-500">Đang tải…</p>
           ) : returns.length === 0 ? (
-            <p className="text-sm text-slate-500 mb-4">Chưa có yêu cầu.</p>
+            <p className="text-sm text-slate-600">
+              Chưa có yêu cầu trả hàng. Khi khách gửi từ trang chi tiết đơn (tài khoản), danh sách và thao tác duyệt / từ chối /
+              hoàn tiền sẽ hiển thị tại đây.
+            </p>
           ) : (
             <div className="overflow-x-auto -mx-1 mb-4">
               <table className="w-full min-w-[440px] text-sm">
@@ -679,10 +635,12 @@ const OrderDetailPage: React.FC = () => {
                     const st = String(r.status ?? '').toLowerCase();
                     const busy = returnStatusUpdatingId === r.id;
                     const btnReturn = 'rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-40';
+                    const canApproveOrReject = st === 'requested';
+                    const canRefund = st === 'approved';
                     return (
                       <tr key={r.id} className="border-b border-slate-100">
                         <td className="py-2 pr-2 font-mono text-slate-600">{r.id}</td>
-                        <td className="py-2 pr-2">{r.status}</td>
+                        <td className="py-2 pr-2">{returnRequestStatusLabel(String(r.status ?? ''))}</td>
                         <td className="py-2 pr-2 text-slate-600 max-w-[120px] truncate" title={r.reason ?? ''}>
                           {r.reason ?? '—'}
                         </td>
@@ -694,7 +652,7 @@ const OrderDetailPage: React.FC = () => {
                           <div className="flex flex-wrap gap-1 justify-end">
                             <button
                               type="button"
-                              disabled={busy || st === 'approved'}
+                              disabled={busy || !canApproveOrReject}
                               onClick={() => void handlePatchReturnStatus(r.id, 'approved')}
                               className={`${btnReturn} border-emerald-200 bg-emerald-50 text-emerald-800`}
                             >
@@ -702,7 +660,7 @@ const OrderDetailPage: React.FC = () => {
                             </button>
                             <button
                               type="button"
-                              disabled={busy || st === 'rejected'}
+                              disabled={busy || !canApproveOrReject}
                               onClick={() => void handlePatchReturnStatus(r.id, 'rejected')}
                               className={`${btnReturn} border-rose-200 bg-rose-50 text-rose-800`}
                             >
@@ -710,7 +668,7 @@ const OrderDetailPage: React.FC = () => {
                             </button>
                             <button
                               type="button"
-                              disabled={busy || st === 'refunded'}
+                              disabled={busy || !canRefund}
                               onClick={() => void handlePatchReturnStatus(r.id, 'refunded')}
                               className={`${btnReturn} border-slate-200 bg-slate-50 text-slate-800`}
                             >
@@ -725,43 +683,6 @@ const OrderDetailPage: React.FC = () => {
               </table>
             </div>
           )}
-
-          <div className="border-t border-slate-100 pt-4">
-            <p className="text-sm font-medium text-slate-900 mb-3">Tạo yêu cầu trả</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="block sm:col-span-2">
-                <span className={labelCls}>Lý do</span>
-                <input
-                  className={inputCls}
-                  value={returnForm.reason}
-                  onChange={(e) => setReturnForm((f) => ({ ...f, reason: e.target.value }))}
-                />
-              </label>
-              <label className="block">
-                <span className={labelCls}>Số tiền hoàn (tuỳ chọn)</span>
-                <input
-                  className={inputCls}
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={returnForm.refundAmount}
-                  onChange={(e) => setReturnForm((f) => ({ ...f, refundAmount: e.target.value }))}
-                />
-              </label>
-              <label className="block sm:col-span-2">
-                <span className={labelCls}>Ghi chú</span>
-                <input className={inputCls} value={returnForm.note} onChange={(e) => setReturnForm((f) => ({ ...f, note: e.target.value }))} />
-              </label>
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleCreateReturn()}
-              disabled={!orderId || returnSubmitting}
-              className={`${btnIcon} mt-3 border-slate-200 bg-white text-slate-800 hover:bg-slate-50`}
-            >
-              {returnSubmitting ? 'Đang gửi…' : 'Gửi yêu cầu'}
-            </button>
-          </div>
         </SectionCard>
       </div>
 

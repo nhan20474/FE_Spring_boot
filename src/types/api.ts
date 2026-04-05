@@ -153,6 +153,7 @@ export interface AdminOrderDto {
   totalPrice: number;
   paymentMethod?: string | null;
   notes?: string | null;
+  couponCode?: string | null;
   status: string;
   createdAt: string;
 }

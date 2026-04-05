@@ -124,7 +124,14 @@ export interface OrderDetailsData {
     carrier?: string | null;
     trackingNumber?: string | null;
     trackingUrl?: string | null;
+    status?: string | null;
+    statusLabel?: string;
+    shippedAt?: string | null;
+    deliveredAt?: string | null;
   } | null;
+  discountAmount?: number;
+  couponCode?: string | null;
+  notes?: string | null;
   canCancel?: boolean;
   canConfirmCodReceived?: boolean;
 }

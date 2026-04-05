@@ -2,6 +2,8 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import AdminTopbar from '@/components/admin/AdminTopbar';
+/** Bắt buộc cho modal đổi trạng thái đơn, badge, bảng admin, v.v. */
+import './admin.css';
 
 const AdminLayout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);

@@ -654,6 +654,31 @@ export async function getOrder(id: number | string): Promise<OrderDto> {
   return apiGet<OrderDto>(`/orders/${id}`, { auth: true });
 }
 
+/** GET /api/orders/{id}/status-history — chủ đơn */
+export async function getOrderStatusHistory(orderId: number | string): Promise<OrderStatusHistoryDto[]> {
+  const raw = await apiGet<OrderStatusHistoryDto[] | { items?: OrderStatusHistoryDto[] }>(
+    `/orders/${orderId}/status-history`,
+    { auth: true },
+  );
+  return extractItemsArray(raw);
+}
+
+/** GET /api/orders/{id}/returns — chủ đơn */
+export async function getOrderReturns(orderId: number | string): Promise<ReturnRequestDto[]> {
+  const raw = await apiGet<ReturnRequestDto[] | { items?: ReturnRequestDto[] }>(`/orders/${orderId}/returns`, {
+    auth: true,
+  });
+  return extractItemsArray(raw);
+}
+
+/** POST /api/orders/{id}/returns — khách gửi yêu cầu trả */
+export async function createOrderReturn(
+  orderId: number | string,
+  body: { reason?: string; refundAmount?: number; note?: string },
+): Promise<ReturnRequestDto> {
+  return apiPost<ReturnRequestDto>(`/orders/${orderId}/returns`, body, { auth: true });
+}
+
 /** POST /api/checkout/quote */
 export async function checkoutQuote(body: CheckoutQuoteRequest): Promise<CheckoutQuoteResponse> {
   return apiPost<CheckoutQuoteResponse>('/checkout/quote', body, { auth: true });
