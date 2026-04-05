@@ -13,8 +13,6 @@ export const PAYMENT_METHOD_OPTIONS = [
   'cash_on_delivery',
   'vnpay',
   'momo',
-  'stripe',
-  'paypal',
 ] as const;
 
 export type PaymentMethodOption = (typeof PAYMENT_METHOD_OPTIONS)[number];

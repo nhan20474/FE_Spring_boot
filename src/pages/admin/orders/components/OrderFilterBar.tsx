@@ -35,8 +35,6 @@ function paymentMethodTriggerLabel(methods: Set<PaymentMethodOption>): string {
       case 'vnpay': return 'VNPay';
       case 'cash_on_delivery': return 'COD';
       case 'momo': return 'MoMo';
-      case 'stripe': return 'Stripe';
-      case 'paypal': return 'PayPal';
       default: return opt;
     }
   }
@@ -87,11 +85,11 @@ const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
       <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 sm:border-b-0 sm:border-r border-slate-100">
         <span className="material-icons text-slate-500 text-[22px]">search</span>
       </div>
-      
+
       <div className="flex items-center px-4 py-3 border-b border-slate-100 sm:border-b-0 sm:border-r border-slate-100 flex-grow min-w-[200px]">
-        <input 
-          type="text" 
-          placeholder="Tìm ID đơn hàng / Tên khách hàng" 
+        <input
+          type="text"
+          placeholder="Tìm ID đơn hàng / Tên khách hàng"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full bg-transparent outline-none text-sm font-semibold text-slate-800 placeholder:text-slate-400 placeholder:font-normal"

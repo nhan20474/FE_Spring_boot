@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import AdminProductsTabs from '@/components/admin/AdminProductsTabs';
+import SearchableCategorySelect from './components/SearchableCategorySelect';
 import * as backend from '@/services/backend';
 import { generateProductInfo, isAiConfigured } from '@/services/gemini';
 import type { CategoryDto } from '@/types/api';
@@ -52,6 +53,36 @@ const ProductFormPage: React.FC = () => {
   useEffect(() => {
     backend.getCategories().then(setCategories).catch(() => setCategories([]));
   }, []);
+
+  const flattenedCategories = useMemo(() => {
+    // Map categories by ID
+    const map = new Map<number, CategoryDto & { children: CategoryDto[] }>();
+    categories.forEach((c) => map.set(c.id, { ...c, children: [] }));
+    
+    // Build tree
+    const tree: (CategoryDto & { children: CategoryDto[] })[] = [];
+    categories.forEach((c) => {
+      if (c.parentId != null && map.has(c.parentId)) {
+        map.get(c.parentId)!.children.push(map.get(c.id)!);
+      } else {
+        tree.push(map.get(c.id)!);
+      }
+    });
+
+    // Flatten tree with depth indicator
+    const flatten = (nodes: any[], depth = 0): { id: number; name: string; depth: number }[] => {
+      let result: { id: number; name: string; depth: number }[] = [];
+      for (const node of nodes) {
+        result.push({ id: node.id, name: node.name, depth });
+        if (node.children && node.children.length > 0) {
+          result = result.concat(flatten(node.children, depth + 1));
+        }
+      }
+      return result;
+    };
+
+    return flatten(tree);
+  }, [categories]);
 
   // Load product if editing
   const loadProduct = useCallback(async () => {
@@ -288,19 +319,11 @@ const ProductFormPage: React.FC = () => {
               <label className="block text-xs font-bold text-slate-600 mb-1.5">
                 Danh mục <span className="text-red-500">*</span>
               </label>
-              <select
-                name="categoryId"
+              <SearchableCategorySelect
+                categories={flattenedCategories}
                 value={form.categoryId}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">-- Chọn danh mục --</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setForm((prev) => ({ ...prev, categoryId: val }))}
+              />
             </div>
 
             {/* Price */}

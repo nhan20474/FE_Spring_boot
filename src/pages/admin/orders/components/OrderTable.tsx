@@ -41,11 +41,9 @@ const OrderTable: React.FC<OrderTableProps> = ({ rows }) => {
                 <td className="py-4 px-4 text-slate-700 whitespace-nowrap">{formatOrderDate(row.date)}</td>
                 <td className="py-4 px-4 text-slate-700">
                   {row.paymentMethod === 'vnpay' ? 'VNPay' :
-                   row.paymentMethod === 'cash_on_delivery' ? 'COD' :
-                   row.paymentMethod === 'momo' ? 'MoMo' :
-                   row.paymentMethod === 'stripe' ? 'Stripe' :
-                   row.paymentMethod === 'paypal' ? 'PayPal' :
-                   row.paymentMethod || '—'}
+                    row.paymentMethod === 'cash_on_delivery' ? 'COD' :
+                      row.paymentMethod === 'momo' ? 'MoMo' :
+                        row.paymentMethod || '—'}
                 </td>
                 <td className="py-4 px-4">
                   <OrderStatusBadge status={row.status} />

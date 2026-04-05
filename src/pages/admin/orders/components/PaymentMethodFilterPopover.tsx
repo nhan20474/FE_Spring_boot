@@ -28,8 +28,6 @@ const PaymentMethodFilterPopover: React.FC<PaymentMethodFilterPopoverProps> = ({
       case 'vnpay': return 'VNPay';
       case 'cash_on_delivery': return 'COD';
       case 'momo': return 'MoMo';
-      case 'stripe': return 'Stripe';
-      case 'paypal': return 'PayPal';
       default: return opt;
     }
   };
@@ -49,11 +47,10 @@ const PaymentMethodFilterPopover: React.FC<PaymentMethodFilterPopoverProps> = ({
               key={opt}
               type="button"
               onClick={() => toggle(opt)}
-              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                on
+              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${on
                   ? 'border-[#4880FF] bg-[#4880FF] text-white'
                   : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
-              }`}
+                }`}
             >
               {getLabel(opt)}
             </button>
