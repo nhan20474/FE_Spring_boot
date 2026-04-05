@@ -22,6 +22,12 @@ export interface ProductDto {
   categoryName?: string | null;
   stock?: number | null;
   featured?: boolean | null;
+  /** JSON string: [{ name, hex }, ...] */
+  colors?: string | null;
+  /** JSON string: string[] hoặc legacy { capacity }[] */
+  storageOptions?: string | null;
+  /** JSON string: object thông số kỹ thuật */
+  specifications?: string | null;
 }
 
 export interface AuthRequest {

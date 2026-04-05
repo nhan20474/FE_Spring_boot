@@ -187,6 +187,8 @@ export interface TrendingProduct {
   reviews: number;
   isBestSeller?: boolean;
   productDetailId?: string;
+  /** Theo `stock` từ API; undefined = coi như còn hàng */
+  inStock?: boolean;
 }
 
 export interface FooterLink {
@@ -207,6 +209,8 @@ export interface ListingProduct {
   productDetailId?: string;
   badge?: string;
   specs?: string;
+  /** Theo `stock` từ API; undefined = coi như còn hàng */
+  inStock?: boolean;
 }
 
 export interface CoolingProduct {

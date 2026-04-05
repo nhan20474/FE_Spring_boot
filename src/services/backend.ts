@@ -304,6 +304,9 @@ export interface AdminProductPayload {
   categoryId: number;
   stock: number;
   featured?: boolean;
+  colors?: string | null;
+  storageOptions?: string | null;
+  specifications?: string | null;
 }
 
 // ——— File Upload ———

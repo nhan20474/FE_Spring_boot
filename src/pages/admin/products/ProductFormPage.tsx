@@ -3,8 +3,144 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import AdminProductsTabs from '@/components/admin/AdminProductsTabs';
 import SearchableCategorySelect from './components/SearchableCategorySelect';
 import * as backend from '@/services/backend';
+import { parseProductColorsFromApi, parseProductStorageFromApi } from '@/services/productMappers';
 import { generateProductInfo, isAiConfigured } from '@/services/gemini';
 import type { CategoryDto } from '@/types/api';
+
+interface ColorRow {
+  name: string;
+  hex: string;
+}
+
+interface SpecRow {
+  id: string;
+  label: string;
+  value: string;
+}
+
+interface SpecSection {
+  id: string;
+  title: string;
+  rows: SpecRow[];
+}
+
+function newSpecRow(label = '', value = ''): SpecRow {
+  return { id: crypto.randomUUID(), label, value };
+}
+
+function newSpecSection(title: string, rows: Omit<SpecRow, 'id'>[] = [{ label: '', value: '' }]): SpecSection {
+  return {
+    id: crypto.randomUUID(),
+    title,
+    rows: rows.map((r) => ({ ...r, id: crypto.randomUUID() })),
+  };
+}
+
+/** Gợi ý nhóm thông số — người dùng chỉ cần điền giá trị */
+const SPEC_SUGGESTIONS: { title: string; rows: { label: string; value: string }[] }[] = [
+  {
+    title: 'Màn hình',
+    rows: [
+      { label: 'Kích thước', value: '' },
+      { label: 'Công nghệ màn hình', value: '' },
+      { label: 'Độ phân giải / độ sáng', value: '' },
+    ],
+  },
+  {
+    title: 'Camera sau',
+    rows: [
+      { label: 'Độ phân giải', value: '' },
+      { label: 'Khẩu độ / chống rung', value: '' },
+    ],
+  },
+  { title: 'Camera trước', rows: [{ label: 'Độ phân giải', value: '' }] },
+  {
+    title: 'Hiệu năng & bộ nhớ',
+    rows: [
+      { label: 'Chip xử lý', value: '' },
+      { label: 'RAM', value: '' },
+    ],
+  },
+  {
+    title: 'Pin & sạc',
+    rows: [
+      { label: 'Dung lượng pin', value: '' },
+      { label: 'Công nghệ sạc', value: '' },
+    ],
+  },
+  {
+    title: 'Kết nối',
+    rows: [
+      { label: 'SIM / 5G', value: '' },
+      { label: 'Wi‑Fi / Bluetooth', value: '' },
+    ],
+  },
+  {
+    title: 'Thiết kế',
+    rows: [
+      { label: 'Kháng nước & bụi', value: '' },
+      { label: 'Kích thước & trọng lượng', value: '' },
+    ],
+  },
+];
+
+function formatSpecValueForForm(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (Array.isArray(val)) return val.map((x) => (x == null ? '' : String(x))).join(', ');
+  try {
+    return JSON.stringify(val);
+  } catch {
+    return String(val);
+  }
+}
+
+/** Đọc JSON từ API → bảng chỉnh sửa */
+function parseSpecsJsonToSections(raw: string | null | undefined): SpecSection[] {
+  if (!raw?.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+    const out: SpecSection[] = [];
+    for (const [sectionKey, block] of Object.entries(parsed as Record<string, unknown>)) {
+      if (block == null) continue;
+      if (typeof block === 'object' && !Array.isArray(block)) {
+        const rows: SpecRow[] = [];
+        for (const [rowKey, val] of Object.entries(block as Record<string, unknown>)) {
+          rows.push(newSpecRow(rowKey, formatSpecValueForForm(val)));
+        }
+        out.push({ id: crypto.randomUUID(), title: sectionKey, rows: rows.length > 0 ? rows : [newSpecRow()] });
+      } else {
+        out.push({
+          id: crypto.randomUUID(),
+          title: sectionKey,
+          rows: [newSpecRow('Giá trị', formatSpecValueForForm(block))],
+        });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Gộp các nhóm trùng tên khi lưu; giá trị sau ghi đè nhãn trùng */
+function buildSpecsJsonFromSections(sections: SpecSection[]): string | null {
+  const merged = new Map<string, Record<string, string>>();
+  for (const sec of sections) {
+    const t = sec.title.trim();
+    if (!t) continue;
+    const inner = { ...(merged.get(t) ?? {}) };
+    for (const row of sec.rows) {
+      const lab = row.label.trim();
+      if (!lab) continue;
+      inner[lab] = row.value.trim();
+    }
+    if (Object.keys(inner).length > 0) merged.set(t, inner);
+  }
+  const obj = Object.fromEntries(merged);
+  return Object.keys(obj).length > 0 ? JSON.stringify(obj) : null;
+}
 
 interface FormData {
   name: string;
@@ -14,6 +150,9 @@ interface FormData {
   stock: string;
   categoryId: string;
   featured: boolean;
+  colors: ColorRow[];
+  storageOptions: string[];
+  specSections: SpecSection[];
 }
 
 const EMPTY: FormData = {
@@ -24,6 +163,9 @@ const EMPTY: FormData = {
   stock: '',
   categoryId: '',
   featured: false,
+  colors: [],
+  storageOptions: [],
+  specSections: [],
 };
 
 const ProductFormPage: React.FC = () => {
@@ -95,9 +237,12 @@ const ProductFormPage: React.FC = () => {
         description: dto.description ?? '',
         image: dto.image ?? '',
         price: String(dto.price),
-        stock: String(dto.stock),
+        stock: String(dto.stock ?? 0),
         categoryId: String(dto.categoryId),
-        featured: dto.featured,
+        featured: Boolean(dto.featured),
+        colors: parseProductColorsFromApi(dto.colors ?? undefined),
+        storageOptions: parseProductStorageFromApi(dto.storageOptions ?? undefined),
+        specSections: parseSpecsJsonToSections(dto.specifications ?? undefined),
       });
     } catch {
       setError('Không tải được sản phẩm.');
@@ -196,6 +341,13 @@ const ProductFormPage: React.FC = () => {
     if (isNaN(stock) || stock < 0) return setError('Số lượng không hợp lệ.');
     if (isNaN(categoryId)) return setError('Vui lòng chọn danh mục.');
 
+    const colorPayload = form.colors
+      .map((c) => ({ name: c.name.trim(), hex: (c.hex || '#64748b').trim() || '#64748b' }))
+      .filter((c) => c.name.length > 0);
+    const storagePayload = form.storageOptions.map((s) => s.trim()).filter((s) => s.length > 0);
+
+    const specificationsOut = buildSpecsJsonFromSections(form.specSections);
+
     setSaving(true);
     try {
       const basePayload = {
@@ -206,6 +358,9 @@ const ProductFormPage: React.FC = () => {
         featured: form.featured,
         ...(form.description ? { description: form.description } : {}),
         ...(form.image ? { image: form.image } : {}),
+        colors: colorPayload.length > 0 ? JSON.stringify(colorPayload) : null,
+        storageOptions: storagePayload.length > 0 ? JSON.stringify(storagePayload) : null,
+        specifications: specificationsOut,
       };
 
       if (isEdit && id) {
@@ -452,6 +607,310 @@ const ProductFormPage: React.FC = () => {
                 placeholder="Mô tả chi tiết sản phẩm..."
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
               />
+            </div>
+
+            {/* Màu sắc */}
+            <div className="md:col-span-2">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <label className="block text-xs font-bold text-slate-600">Màu sắc (tên + mã hex)</label>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, colors: [...p.colors, { name: '', hex: '#64748b' }] }))}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  + Thêm màu
+                </button>
+              </div>
+              <div className="space-y-2 rounded-xl border border-slate-200 p-3 bg-slate-50/50">
+                {form.colors.length === 0 ? (
+                  <p className="text-xs text-slate-500">Chưa có màu — khách sẽ không thấy chọn màu trên trang chi tiết.</p>
+                ) : (
+                  form.colors.map((row, idx) => (
+                    <div key={idx} className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={row.name}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm((p) => {
+                            const next = [...p.colors];
+                            next[idx] = { ...next[idx], name: v };
+                            return { ...p, colors: next };
+                          });
+                        }}
+                        placeholder="Tên màu"
+                        className="flex-1 min-w-[120px] border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
+                      />
+                      <input
+                        type="color"
+                        value={/^#[0-9A-Fa-f]{6}$/.test(row.hex) ? row.hex : '#64748b'}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm((p) => {
+                            const next = [...p.colors];
+                            next[idx] = { ...next[idx], hex: v };
+                            return { ...p, colors: next };
+                          });
+                        }}
+                        className="h-9 w-12 cursor-pointer rounded border border-slate-200 bg-white"
+                        title="Chọn màu"
+                      />
+                      <input
+                        type="text"
+                        value={row.hex}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm((p) => {
+                            const next = [...p.colors];
+                            next[idx] = { ...next[idx], hex: v };
+                            return { ...p, colors: next };
+                          });
+                        }}
+                        placeholder="#1d1d1f"
+                        className="w-28 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setForm((p) => ({ ...p, colors: p.colors.filter((_, i) => i !== idx) }))}
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+                        aria-label="Xóa màu"
+                      >
+                        <span className="material-icons text-[18px]">close</span>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Dung lượng */}
+            <div className="md:col-span-2">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <label className="block text-xs font-bold text-slate-600">Tùy chọn dung lượng</label>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, storageOptions: [...p.storageOptions, ''] }))}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  + Thêm dung lượng
+                </button>
+              </div>
+              <div className="space-y-2 rounded-xl border border-slate-200 p-3 bg-slate-50/50">
+                {form.storageOptions.length === 0 ? (
+                  <p className="text-xs text-slate-500">Chưa có dung lượng — ẩn block chọn bộ nhớ trên storefront.</p>
+                ) : (
+                  form.storageOptions.map((cap, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={cap}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm((p) => {
+                            const next = [...p.storageOptions];
+                            next[idx] = v;
+                            return { ...p, storageOptions: next };
+                          });
+                        }}
+                        placeholder="VD: 256GB"
+                        className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setForm((p) => ({ ...p, storageOptions: p.storageOptions.filter((_, i) => i !== idx) }))}
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+                        aria-label="Xóa"
+                      >
+                        <span className="material-icons text-[18px]">close</span>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Thông số kỹ thuật — dạng bảng */}
+            <div className="md:col-span-2 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-0.5">Thông số kỹ thuật</label>
+                  <p className="text-[11px] text-slate-500 max-w-xl">
+                    Thêm từng <strong>nhóm</strong> (vd. Màn hình), rồi điền <strong>tên thông số</strong> và <strong>giá trị</strong> — không cần biết JSON. Trang khách sẽ hiển thị giống bảng thông số.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((p) => ({
+                        ...p,
+                        specSections: [...p.specSections, newSpecSection('', [newSpecRow()])],
+                      }))
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+                  >
+                    <span className="material-icons text-[16px]">add</span>
+                    Thêm nhóm trống
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 mb-2">Thêm nhanh nhóm gợi ý</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SPEC_SUGGESTIONS.map((s) => (
+                    <button
+                      key={s.title}
+                      type="button"
+                      onClick={() =>
+                        setForm((p) => ({
+                          ...p,
+                          specSections: [...p.specSections, newSpecSection(s.title, s.rows)],
+                        }))
+                      }
+                      className="px-2.5 py-1 rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-600 hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                    >
+                      + {s.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                {form.specSections.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-6">
+                    Chưa có thông số. Chọn gợi ý phía trên hoặc bấm &quot;Thêm nhóm trống&quot;.
+                  </p>
+                ) : (
+                  form.specSections.map((sec, secIdx) => (
+                    <div
+                      key={sec.id}
+                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide shrink-0">
+                          Nhóm {secIdx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={sec.title}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setForm((p) => {
+                              const next = [...p.specSections];
+                              next[secIdx] = { ...next[secIdx], title: v };
+                              return { ...p, specSections: next };
+                            });
+                          }}
+                          placeholder="Tên nhóm, VD: Màn hình, Camera sau..."
+                          className="flex-1 min-w-[200px] border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold text-slate-800"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((p) => ({
+                              ...p,
+                              specSections: p.specSections.filter((s) => s.id !== sec.id),
+                            }))
+                          }
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50"
+                        >
+                          <span className="material-icons text-[16px]">delete_outline</span>
+                          Xóa nhóm
+                        </button>
+                      </div>
+
+                      <div className="overflow-x-auto rounded-lg border border-slate-100">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 text-left text-[11px] font-bold text-slate-500 uppercase">
+                              <th className="px-3 py-2 w-[35%]">Tên thông số</th>
+                              <th className="px-3 py-2">Giá trị (VD: 6.7 inch, OLED)</th>
+                              <th className="px-3 py-2 w-10" />
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {sec.rows.map((row, rowIdx) => (
+                              <tr key={row.id} className="bg-white">
+                                <td className="px-3 py-2 align-top">
+                                  <input
+                                    type="text"
+                                    value={row.label}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setForm((p) => {
+                                        const next = [...p.specSections];
+                                        const rows = [...next[secIdx].rows];
+                                        rows[rowIdx] = { ...rows[rowIdx], label: v };
+                                        next[secIdx] = { ...next[secIdx], rows };
+                                        return { ...p, specSections: next };
+                                      });
+                                    }}
+                                    placeholder="VD: Kích thước"
+                                    className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 align-top">
+                                  <input
+                                    type="text"
+                                    value={row.value}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setForm((p) => {
+                                        const next = [...p.specSections];
+                                        const rows = [...next[secIdx].rows];
+                                        rows[rowIdx] = { ...rows[rowIdx], value: v };
+                                        next[secIdx] = { ...next[secIdx], rows };
+                                        return { ...p, specSections: next };
+                                      });
+                                    }}
+                                    placeholder="VD: 6.7 inch, Super Retina XDR"
+                                    className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+                                  />
+                                </td>
+                                <td className="px-1 py-2 align-top text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setForm((p) => {
+                                        const next = [...p.specSections];
+                                        const rows = next[secIdx].rows.filter((r) => r.id !== row.id);
+                                        next[secIdx] = { ...next[secIdx], rows: rows.length > 0 ? rows : [newSpecRow()] };
+                                        return { ...p, specSections: next };
+                                      })
+                                    }
+                                    className="p-1 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+                                    aria-label="Xóa dòng"
+                                  >
+                                    <span className="material-icons text-[18px]">close</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((p) => {
+                            const next = [...p.specSections];
+                            next[secIdx] = {
+                              ...next[secIdx],
+                              rows: [...next[secIdx].rows, newSpecRow()],
+                            };
+                            return { ...p, specSections: next };
+                          })
+                        }
+                        className="text-xs font-semibold text-primary hover:underline"
+                      >
+                        + Thêm dòng trong nhóm này
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
             {/* Featured */}

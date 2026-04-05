@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApiFeaturedProducts } from '@/hooks/useProductApi';
-import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import ListingStockBadge from '@/components/store/ListingStockBadge';
 import { formatVND, productDetailPath } from '@/utils';
 import type { TrendingProduct as TrendingProductType } from '@/types';
 
@@ -29,7 +29,6 @@ interface TrendingCardProps {
 }
 
 const TrendingCard: React.FC<TrendingCardProps> = ({ product, imageError, onImageError }) => {
-  const { addItem } = useCart();
   const { toggleItem, isInWishlist } = useWishlist();
   const to = productDetailPath({
     id: product.id,
@@ -39,14 +38,6 @@ const TrendingCard: React.FC<TrendingCardProps> = ({ product, imageError, onImag
   const productId = product.productDetailId ?? product.id;
   const imgSrc = imageError || !product.image ? PLACEHOLDER_IMAGE : product.image;
   const inWishlist = isInWishlist(productId);
-
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      addItem({ productId, name: product.name, price: product.price, image: product.image || '' });
-    } catch (_) { }
-  };
 
   const handleWishlistToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -97,20 +88,13 @@ const TrendingCard: React.FC<TrendingCardProps> = ({ product, imageError, onImag
           <span className="text-xs text-slate-400 font-medium">({product.reviews.toLocaleString()})</span>
         </div>
       </div>
-      <div className="mt-4 flex items-center justify-between">
-        <div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <span className="block text-2xl font-black text-slate-900 dark:text-white">
             {formatVND(product.price)}
           </span>
         </div>
-        <button
-          type="button"
-          className="bg-primary text-white p-2 rounded-lg hover:bg-blue-600 transition-colors z-20"
-          onClick={handleAddToCart}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <span className="material-icons">add_shopping_cart</span>
-        </button>
+        <ListingStockBadge inStock={product.inStock} className="px-2.5 py-1.5 shrink-0" />
       </div>
     </Link>
   );

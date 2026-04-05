@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApiProducts } from '@/hooks/useProductApi';
-import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import ListingStockBadge from '@/components/store/ListingStockBadge';
 import { formatVND, productDetailPath } from '@/utils';
 import Breadcrumbs from '@/components/store/Breadcrumbs';
 
@@ -14,7 +14,6 @@ const ProductListingPage: React.FC = () => {
   const [sortValue, setSortValue] = useState('createdAt-desc');
   const [sortBy, sortDir] = sortValue.split('-');
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
-  const { addItem } = useCart();
   const { toggleItem, isInWishlist } = useWishlist();
   const { data: listingProducts, loading } = useApiProducts({ page: 0, size: 100, sortBy, sortDir });
   const markImageError = (id: string) => setFailedImageIds((prev) => new Set(prev).add(id));
@@ -110,26 +109,9 @@ const ProductListingPage: React.FC = () => {
                         {product.oldPrice && <span className="block text-sm text-slate-400 line-through">{formatVND(product.oldPrice)}</span>}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="w-full mt-4 bg-primary hover:bg-primary/90 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors z-20"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        try {
-                          addItem({
-                            productId: product.productDetailId ?? product.id,
-                            name: product.name,
-                            price: product.price,
-                            image: product.image || '',
-                          });
-                        } catch (_) {}
-                      }}
-                    >
-                      <span className="material-icons text-lg">add_shopping_cart</span>
-                      Thêm vào giỏ
-                    </button>
+                    <div className="w-full mt-4 flex justify-stretch z-20" onMouseDown={(e) => e.stopPropagation()}>
+                      <ListingStockBadge inStock={product.inStock} className="w-full py-2.5" />
+                    </div>
                   </div>
                 </Link>
               );

@@ -7,28 +7,10 @@ import { useWishlist } from '@/context/WishlistContext';
 import { formatVND } from '@/utils';
 import Breadcrumbs from '@/components/store/Breadcrumbs';
 
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
+const EMPTY_COLORS: { name: string; hex: string }[] = [];
+const EMPTY_STORAGE_OPTS: string[] = [];
 
-const DEFAULT_IPHONE_COLORS = [
-  { name: 'Đen', hex: '#1d1d1f' },
-  { name: 'Xanh dương', hex: '#407ec9' },
-  { name: 'Xanh lá', hex: '#34c759' },
-  { name: 'Hồng', hex: '#f8b4c4' },
-  { name: 'Vàng', hex: '#f5e6d3' },
-];
-const DEFAULT_IPHONE_STORAGE = ['128GB', '256GB', '512GB'];
-const DEFAULT_SAMSUNG_COLORS = [
-  { name: 'Đen Onyx', hex: '#1a1a1a' },
-  { name: 'Tím Violet', hex: '#8b5cf6' },
-  { name: 'Vàng Amber', hex: '#f59e0b' },
-  { name: 'Xanh Marble', hex: '#0ea5e9' },
-];
-const DEFAULT_SAMSUNG_STORAGE = ['256GB', '512GB'];
-const DEFAULT_IPAD_COLORS = [
-  { name: 'Xám Space Gray', hex: '#6e6e73' },
-  { name: 'Bạc Silver', hex: '#e8e8ed' },
-];
-const DEFAULT_IPAD_STORAGE = ['256GB', '512GB', '1TB'];
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
 
 const ProductDetail: React.FC = () => {
   const { slug: segment } = useParams<{ slug: string }>();
@@ -40,29 +22,18 @@ const ProductDetail: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [addInstallation, setAddInstallation] = useState(false);
   const [justAddedToCart, setJustAddedToCart] = useState(false);
   const [failedThumbIndices, setFailedThumbIndices] = useState<Set<number>>(() => new Set());
 
-  const colors = useMemo(() => {
-    if (!product) return [];
-    if (product.colors?.length) return product.colors;
-    const name = product.name || '';
-    if (name.startsWith('iPhone')) return DEFAULT_IPHONE_COLORS;
-    if (name.includes('Samsung Galaxy S24')) return DEFAULT_SAMSUNG_COLORS;
-    if (name.includes('iPad')) return DEFAULT_IPAD_COLORS;
-    return [];
-  }, [product?.colors, product?.name]);
+  const colors = useMemo(
+    () => (product?.colors && product.colors.length > 0 ? product.colors : EMPTY_COLORS),
+    [product?.colors],
+  );
 
-  const storageOptions = useMemo(() => {
-    if (!product) return [];
-    if (product.storageOptions?.length) return product.storageOptions;
-    const name = product.name || '';
-    if (name.startsWith('iPhone')) return DEFAULT_IPHONE_STORAGE;
-    if (name.includes('Samsung Galaxy S24')) return DEFAULT_SAMSUNG_STORAGE;
-    if (name.includes('iPad')) return DEFAULT_IPAD_STORAGE;
-    return [];
-  }, [product?.storageOptions, product?.name]);
+  const storageOptions = useMemo(
+    () => (product?.storageOptions && product.storageOptions.length > 0 ? product.storageOptions : EMPTY_STORAGE_OPTS),
+    [product?.storageOptions],
+  );
 
   useEffect(() => {
     setFailedThumbIndices(new Set());
@@ -70,15 +41,11 @@ const ProductDetail: React.FC = () => {
 
   useEffect(() => {
     if (!product) return;
-    if (product.colors?.length) setSelectedColor(product.colors[0].name);
-    else if (product.name?.startsWith('iPhone')) setSelectedColor(DEFAULT_IPHONE_COLORS[0].name);
-    else if (product.name?.includes('Samsung Galaxy S24')) setSelectedColor(DEFAULT_SAMSUNG_COLORS[0].name);
-    else if (product.name?.includes('iPad')) setSelectedColor(DEFAULT_IPAD_COLORS[0].name);
-    if (product.storageOptions?.length) setSelectedSize(product.storageOptions[1] ?? product.storageOptions[0]);
-    else if (product.name?.startsWith('iPhone')) setSelectedSize(DEFAULT_IPHONE_STORAGE[1] ?? DEFAULT_IPHONE_STORAGE[0]);
-    else if (product.name?.includes('Samsung Galaxy S24')) setSelectedSize(DEFAULT_SAMSUNG_STORAGE[0]);
-    else if (product.name?.includes('iPad')) setSelectedSize(DEFAULT_IPAD_STORAGE[1] ?? DEFAULT_IPAD_STORAGE[0]);
-  }, [product?.id, product?.name, product?.colors, product?.storageOptions]);
+    const c = product.colors;
+    const s = product.storageOptions;
+    setSelectedColor(c?.length ? c[0].name : '');
+    setSelectedSize(s?.length ? (s[1] ?? s[0]) : '');
+  }, [product?.id, product?.colors, product?.storageOptions]);
 
   if (isApiConfigured() && apiLoading) {
     return (
@@ -132,7 +99,7 @@ const ProductDetail: React.FC = () => {
 
   return (
     <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto max-w-7xl px-4 sm:px-6 py-6 md:py-10">
         <Breadcrumbs
           items={[
             { label: 'Trang chủ', path: '/' },
@@ -141,60 +108,99 @@ const ProductDetail: React.FC = () => {
             ...(extras?.brand ? [{ label: extras.brand, path: '/search' }] : []),
             { label: product.name }
           ]}
-          className="mb-8"
+          className="mb-6 md:mb-8"
         />
-          <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-20">
-            <div className="lg:col-span-7 flex flex-col-reverse md:flex-row gap-4">
-              <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto hide-scrollbar">
+
+        <section className="mb-12 md:mb-16 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/50 shadow-sm overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-12 lg:min-h-[420px]">
+            <div className="lg:col-span-7 flex flex-col-reverse md:flex-row gap-4 p-4 sm:p-6 lg:border-r border-slate-200 dark:border-slate-800">
+              <div className="flex md:flex-col gap-2 sm:gap-3 overflow-x-auto md:overflow-y-auto md:max-h-[min(520px,70vh)] hide-scrollbar py-1">
                 {images.slice(0, 5).map((img, num) => (
-                  <button key={num} type="button" onClick={() => setSelectedImageIndex(num)} className={`w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer transition-colors ${selectedImageIndex === num ? 'border-2 border-primary' : 'border border-slate-200 dark:border-slate-800 hover:border-primary/50'}`}>
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setSelectedImageIndex(num)}
+                    className={`w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] flex-shrink-0 rounded-lg overflow-hidden cursor-pointer transition-all ${selectedImageIndex === num ? 'ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-slate-900' : 'border border-slate-200 dark:border-slate-700 hover:border-primary/50 opacity-90 hover:opacity-100'}`}
+                  >
                     <img alt={`Thumbnail ${num + 1}`} src={thumbSrc(num)} className="w-full h-full object-cover" onError={() => setFailedThumbIndices((prev) => new Set(prev).add(num))} />
                   </button>
                 ))}
               </div>
-              <div className="flex-grow bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center relative group">
-                <img alt={product.name} src={mainImageSrc} className="w-full h-auto object-contain p-8" onError={() => setFailedThumbIndices((prev) => new Set(prev).add(selectedImageIndex))} />
-                <button type="button" className="absolute bottom-4 right-4 bg-white/80 dark:bg-black/40 backdrop-blur p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"><span className="material-icons">zoom_in</span></button>
+              <div className="flex-1 min-h-[240px] sm:min-h-[320px] rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex items-center justify-center relative group">
+                <img alt={product.name} src={mainImageSrc} className="w-full h-full max-h-[min(480px,55vh)] object-contain p-4 sm:p-6" onError={() => setFailedThumbIndices((prev) => new Set(prev).add(selectedImageIndex))} />
+                <button type="button" className="absolute bottom-3 right-3 bg-white/90 dark:bg-slate-900/80 backdrop-blur p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Phóng to ảnh">
+                  <span className="material-icons text-lg text-slate-700 dark:text-slate-200">zoom_in</span>
+                </button>
               </div>
             </div>
-            <div className="lg:col-span-5 flex flex-col">
-              <div className="mb-4">
-                {product.tag && <span className="text-xs font-bold text-primary uppercase tracking-widest">{product.tag}</span>}
-                <h1 className="text-4xl font-bold mt-2 leading-tight">{product.name}</h1>
-                <div className="flex items-center gap-4 mt-4">
+
+            <div className="lg:col-span-5 flex flex-col p-5 sm:p-6 lg:p-8">
+              <div className="mb-5">
+                {product.tag && <span className="text-[10px] sm:text-xs font-bold text-primary uppercase tracking-widest">{product.tag}</span>}
+                <h1 className="text-2xl sm:text-3xl lg:text-3xl xl:text-4xl font-bold mt-1.5 leading-snug">{product.name}</h1>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-sm text-slate-500">
                   {renderStars(product.rating)}
-                  <span className="text-sm font-medium text-slate-500 underline cursor-pointer">{product.reviews} đánh giá</span>
-                  {product.sku && <><span className="text-sm text-slate-400">|</span><span className="text-sm text-slate-500">SKU: {product.sku}</span></>}
+                  <span className="font-medium underline-offset-2 hover:underline cursor-pointer">{product.reviews} đánh giá</span>
+                  {product.sku && (
+                    <>
+                      <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">|</span>
+                      <span>SKU: {product.sku}</span>
+                    </>
+                  )}
                 </div>
               </div>
-              <div className="mb-8">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-slate-900 dark:text-white">{formatVND(product.price)}</span>
-                  {product.oldPrice && <span className="text-lg text-slate-400 line-through">{formatVND(product.oldPrice)}</span>}
+
+              <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/30 px-4 py-3 mb-5">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tabular-nums">{formatVND(product.price)}</span>
+                  {product.oldPrice && <span className="text-sm text-slate-400 line-through tabular-nums">{formatVND(product.oldPrice)}</span>}
                 </div>
-                <p className={`text-sm font-medium mt-1 ${product.inStock !== false ? 'text-green-600' : 'text-red-600'}`}>{product.inStock !== false ? 'Còn hàng - Sẵn sàng giao' : 'Hết hàng'}</p>
+                <p className={`text-xs sm:text-sm font-semibold mt-1.5 ${product.inStock !== false ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
+                  {product.inStock !== false ? 'Còn hàng · Sẵn sàng giao' : 'Hết hàng'}
+                </p>
               </div>
-              {colors.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold mb-3">Màu sắc: <span className="text-slate-500 font-normal">{selectedColor || colors[0]?.name}</span></label>
-                  <div className="flex gap-3">
-                    {colors.map((color) => (
-                      <button key={color.name} type="button" onClick={() => setSelectedColor(color.name)} className={`w-8 h-8 rounded-full flex-shrink-0 transition-all ${selectedColor === color.name ? 'ring-2 ring-offset-2 ring-primary ring-offset-white dark:ring-offset-background-dark' : 'ring-1 ring-slate-200 dark:ring-slate-700'}`} style={{ backgroundColor: color.hex }} />
-                    ))}
-                  </div>
+
+              {(colors.length > 0 || storageOptions.length > 0) && (
+                <div className="rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white/60 dark:bg-slate-900/40 p-4 mb-5 space-y-5">
+                  {colors.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Màu sắc</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">{selectedColor || colors[0]?.name}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {colors.map((color) => (
+                          <button
+                            key={color.name}
+                            type="button"
+                            title={color.name}
+                            onClick={() => setSelectedColor(color.name)}
+                            className={`w-9 h-9 rounded-full flex-shrink-0 transition-all ${selectedColor === color.name ? 'ring-2 ring-offset-2 ring-primary ring-offset-white dark:ring-offset-slate-900 scale-105' : 'ring-1 ring-slate-200 dark:ring-slate-600 hover:ring-primary/40'}`}
+                            style={{ backgroundColor: color.hex }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {storageOptions.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Dung lượng</p>
+                      <div className="flex flex-wrap gap-2">
+                        {storageOptions.map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => setSelectedSize(size)}
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold leading-tight transition-colors ${selectedSize === size ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:border-primary/50'}`}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-              {storageOptions.length > 0 && (
-                <div className="mb-8">
-                  <label className="block text-sm font-semibold mb-3">Phiên bản / Dung lượng</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {storageOptions.map((size) => (
-                      <button key={size} type="button" onClick={() => setSelectedSize(size)} className={`py-3 px-2 rounded-lg text-sm font-medium transition-colors ${selectedSize === size ? 'border-2 border-primary bg-primary/5 text-primary font-bold' : 'border border-slate-200 dark:border-slate-700 hover:border-primary'}`}>{size}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="flex gap-4 mb-8">
+
+              <div className="flex gap-3 mt-auto mb-5">
                 <button
                   type="button"
                   disabled={product.inStock === false}
@@ -211,14 +217,14 @@ const ProductDetail: React.FC = () => {
                     setJustAddedToCart(true);
                     setTimeout(() => setJustAddedToCart(false), 2000);
                   }}
-                  className="flex-grow bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 cursor-pointer relative z-10"
+                  className="flex-1 min-w-0 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-bold text-sm sm:text-base py-3 sm:py-3.5 rounded-xl shadow-md shadow-primary/15 transition-all flex items-center justify-center gap-2"
                 >
-                  <span className="material-icons">{justAddedToCart ? 'check_circle' : 'shopping_bag'}</span>
-                  {justAddedToCart ? ' Đã thêm vào giỏ' : ' Thêm vào giỏ'}
+                  <span className="material-icons text-xl">{justAddedToCart ? 'check_circle' : 'shopping_bag'}</span>
+                  {justAddedToCart ? 'Đã thêm vào giỏ' : 'Thêm vào giỏ'}
                 </button>
                 <button
                   type="button"
-                  className={`px-4 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${product && isInWishlist(product.id) ? 'text-red-500' : ''}`}
+                  className={`shrink-0 w-12 sm:w-14 flex items-center justify-center border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${product && isInWishlist(product.id) ? 'text-red-500 border-red-200 dark:border-red-900/50' : ''}`}
                   onClick={() =>
                     product &&
                     toggleItem({
@@ -236,65 +242,41 @@ const ProductDetail: React.FC = () => {
                   <span className="material-icons">{product && isInWishlist(product.id) ? 'favorite' : 'favorite_border'}</span>
                 </button>
               </div>
-              <div className="border-t border-slate-200 dark:border-slate-800 pt-6 space-y-4">
-                <div className="flex items-start gap-3"><span className="material-icons text-primary">local_shipping</span><div><p className="text-sm font-semibold">Free Express Shipping</p><p className="text-xs text-slate-500">Order within 4 hrs to get it tomorrow</p></div></div>
-                <div className="flex items-start gap-3"><span className="material-icons text-primary">verified_user</span><div><p className="text-sm font-semibold">2-Year Official Warranty</p><p className="text-xs text-slate-500">Extend your coverage with TechCare+</p></div></div>
+
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3 text-sm">
+                <div className="flex items-start gap-3">
+                  <span className="material-icons text-primary text-xl shrink-0">local_shipping</span>
+                  <div>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">Giao hàng nhanh</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Miễn phí vận chuyển cho đơn đủ điều kiện</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="material-icons text-primary text-xl shrink-0">verified_user</span>
+                  <div>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">Bảo hành chính hãng</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Theo chính sách nhà sản xuất</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
+
+          {product.description?.trim() ? (
+            <section className="mb-10 md:mb-14" aria-labelledby="product-description-heading">
+              <h2 id="product-description-heading" className="text-lg sm:text-xl font-bold mb-4 text-slate-900 dark:text-white">
+                Mô tả sản phẩm
+              </h2>
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-5 py-5 sm:px-7 sm:py-6">
+                <div className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap max-w-3xl">
+                  {product.description.trim()}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
         {(() => {
-          const specSectionLabels: Record<string, string> = {
-            manHinh: 'Màn hình',
-            cameraSau: 'Camera sau',
-            cameraTruoc: 'Camera trước',
-            viXuLyDoHoa: 'Vi xử lý & đồ họa',
-            giaoTiepKetNoi: 'Giao tiếp & kết nối',
-            ramLuuTru: 'RAM & Lưu trữ',
-            pinSac: 'Pin & Sạc',
-            kichThuocTrongLuong: 'Kích thước & Trọng lượng',
-            thietKe: 'Thiết kế',
-            thongSoKhac: 'Thông số khác',
-            gocSieurong: 'Góc siêu rộng',
-            telephoto1: 'Tele 5x',
-            telephoto2: 'Tele 3x',
-          };
-          const specRowLabels: Record<string, string> = {
-            kichThuocManHinh: 'Kích thước',
-            congNgheManHinh: 'Công nghệ',
-            doPhanGiai: 'Độ phân giải',
-            tinhNangManHinh: 'Tính năng',
-            tanSoQuet: 'Tần số quét',
-            kieuManHinh: 'Kiểu màn hình',
-            cameraChinh: 'Camera chính',
-            gocSieuRong: 'Góc siêu rộng',
-            telephoto: 'Telephoto',
-            quayVideo: 'Quay video',
-            tinhNangCamera: 'Tính năng camera',
-            cameraTruoc: 'Camera trước',
-            quayVideoTruoc: 'Quay video trước',
-            tinhNangCameraTruoc: 'Tính năng camera trước',
-            chipset: 'Chipset',
-            gpu: 'GPU',
-            loaiCpu: 'CPU',
-            nfc: 'NFC',
-            sim: 'SIM',
-            mang: 'Mạng',
-            gps: 'GPS',
-            wifi: 'Wi-Fi',
-            bluetooth: 'Bluetooth',
-            ram: 'RAM',
-            boNhoTrong: 'Bộ nhớ trong',
-            pin: 'Pin',
-            congNgheSac: 'Công nghệ sạc',
-            congSac: 'Cổng sạc',
-            kichThuoc: 'Kích thước',
-            trongLuong: 'Trọng lượng',
-            chatLieuMatLung: 'Chất liệu mặt lưng',
-            chatLieuKhungVien: 'Chất liệu khung viền',
-            matTruoc: 'Mặt trước',
-            khangNuocBui: 'Kháng nước & bụi',
-            congNgheTienIch: 'Công nghệ tiện ích',
-          };
           function renderSpecValue(v: unknown): React.ReactNode {
             if (v == null) return '—';
             if (Array.isArray(v)) return v.join(', ');
@@ -303,7 +285,7 @@ const ProductDetail: React.FC = () => {
                 <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400">
                   {Object.entries(v).map(([k, val]) => (
                     <li key={k}>
-                      <span className="font-medium text-slate-700 dark:text-slate-300">{specRowLabels[k] || k}:</span>{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{k}:</span>{' '}
                       {Array.isArray(val) ? val.join(', ') : String(val)}
                     </li>
                   ))}
@@ -322,27 +304,26 @@ const ProductDetail: React.FC = () => {
           }
           if (apiSpecs && Object.keys(apiSpecs).length > 0) {
             return (
-              <section className="mb-20" key="api-specs">
-                <h2 className="text-2xl font-bold mb-8">Thông số kỹ thuật</h2>
-                <div className="space-y-8">
+              <section className="mb-16 md:mb-20" key="api-specs">
+                <h2 className="text-lg sm:text-xl font-bold mb-4 text-slate-900 dark:text-white">Thông số kỹ thuật</h2>
+                <div className="space-y-4 sm:space-y-5">
                   {Object.entries(apiSpecs).map(([key, block]) => {
                     if (key === 'tenSanPham' || block == null) return null;
-                    const title = specSectionLabels[key] || key;
                     const isObj = block && typeof block === 'object' && !Array.isArray(block);
                     const rows = isObj ? Object.entries(block as Record<string, unknown>) : [];
                     return (
-                      <div key={key} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                        <h3 className="bg-slate-50 dark:bg-slate-800/50 px-6 py-3 font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800">
-                          {title}
+                      <div key={key} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900/30 shadow-sm">
+                        <h3 className="bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-5 py-2.5 text-sm sm:text-base font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800">
+                          {key}
                         </h3>
-                        <div className="divide-y divide-slate-200 dark:divide-slate-800">
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
                           {rows.map(([rowKey, value], idx) => (
                             <div
                               key={rowKey}
-                              className={`flex flex-col sm:flex-row sm:gap-4 px-6 py-4 ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-800/30'}`}
+                              className={`flex flex-col sm:flex-row sm:items-start sm:gap-6 px-4 sm:px-5 py-3 sm:py-3.5 ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900/20' : 'bg-slate-50/60 dark:bg-slate-800/20'}`}
                             >
-                              <dt className="font-semibold text-sm text-slate-700 dark:text-slate-300 min-w-[140px]">{specRowLabels[rowKey] || rowKey}</dt>
-                              <dd className="text-sm text-slate-600 dark:text-slate-400 mt-1 sm:mt-0">{renderSpecValue(value)}</dd>
+                              <dt className="font-semibold text-xs sm:text-sm text-slate-600 dark:text-slate-400 sm:w-[38%] shrink-0">{rowKey}</dt>
+                              <dd className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 mt-1 sm:mt-0 flex-1 min-w-0">{renderSpecValue(value)}</dd>
                             </div>
                           ))}
                         </div>

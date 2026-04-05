@@ -5,6 +5,44 @@
 import type { CategoryDto, ProductDto } from '@/types/api';
 import type { Category, Product, TrendingProduct, ListingProduct } from '@/types';
 
+const DEFAULT_COLOR_HEX = '#64748b';
+
+/** Parse JSON `colors` từ API → danh sách hiển thị (hỗ trợ legacy mảng chuỗi tên màu). */
+export function parseProductColorsFromApi(raw: string | null | undefined): { name: string; hex: string }[] {
+  if (!raw?.trim()) return [];
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (!Array.isArray(v)) return [];
+    return v.map((item) => {
+      if (typeof item === 'string') return { name: item, hex: DEFAULT_COLOR_HEX };
+      if (item && typeof item === 'object' && 'name' in item) {
+        const o = item as { name: unknown; hex?: unknown };
+        const hex = o.hex != null && String(o.hex).trim() ? String(o.hex) : DEFAULT_COLOR_HEX;
+        return { name: String(o.name), hex };
+      }
+      return { name: String(item), hex: DEFAULT_COLOR_HEX };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Parse JSON `storageOptions` từ API → mảng nhãn dung lượng (hỗ trợ legacy { capacity }). */
+export function parseProductStorageFromApi(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (!Array.isArray(v)) return [];
+    return v.map((x) => {
+      if (typeof x === 'string') return x;
+      if (x && typeof x === 'object' && 'capacity' in x) return String((x as { capacity: unknown }).capacity);
+      return String(x);
+    });
+  } catch {
+    return [];
+  }
+}
+
 /** Sinh slug từ tên danh mục (bỏ dấu, lowercase, gạch ngang) */
 function nameToSlug(name: string): string {
   return name
@@ -59,6 +97,7 @@ export function mapProductDtoToTrending(dto: ProductDto): TrendingProduct {
     reviews: 0,
     isBestSeller: dto.featured,
     productDetailId: String(dto.id),
+    inStock: (dto.stock ?? 0) > 0,
   };
 }
 
@@ -72,11 +111,15 @@ export function mapProductDtoToListing(dto: ProductDto): ListingProduct {
     rating: 4,
     reviews: 0,
     productDetailId: String(dto.id),
+    inStock: (dto.stock ?? 0) > 0,
   };
 }
 
 export function mapProductDtoToProduct(dto: ProductDto): Product {
   const image = dto.image ?? '';
+  const colors = parseProductColorsFromApi(dto.colors ?? undefined);
+  const storageOptions = parseProductStorageFromApi(dto.storageOptions ?? undefined);
+  const specRaw = dto.specifications?.trim();
   return {
     id: String(dto.id),
     slug: dto.slug?.trim() || undefined,
@@ -89,5 +132,8 @@ export function mapProductDtoToProduct(dto: ProductDto): Product {
     images: image ? [image] : undefined,
     description: dto.description ?? undefined,
     inStock: dto.stock > 0,
+    ...(colors.length > 0 ? { colors } : {}),
+    ...(storageOptions.length > 0 ? { storageOptions } : {}),
+    ...(specRaw ? { specifications: specRaw } : {}),
   };
 }

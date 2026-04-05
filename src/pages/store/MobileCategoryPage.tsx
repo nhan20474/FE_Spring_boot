@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApiProductsBySlug } from '@/hooks/useProductApi';
-import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import ListingStockBadge from '@/components/store/ListingStockBadge';
 import { formatVND, productDetailPath } from '@/utils';
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
@@ -44,7 +44,6 @@ function Badge({ label, variant }: { label: string; variant: 'primary' | 'red' |
 }
 
 const MobileCategoryPage: React.FC = () => {
-  const { addItem } = useCart();
   const { toggleItem, isInWishlist } = useWishlist();
   const [sortValue, setSortValue] = useState('createdAt-desc');
   const [sortBy, sortDir] = sortValue.split('-');
@@ -184,26 +183,9 @@ const MobileCategoryPage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        className="w-full bg-primary text-white py-3 rounded font-bold hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 z-20"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          try {
-                            addItem({
-                              productId: product.productDetailId ?? product.id,
-                              name: product.name,
-                              price: product.price,
-                              image: product.image || '',
-                            });
-                          } catch (_) {}
-                        }}
-                      >
-                        <span className="material-icons text-sm">shopping_cart</span>
-                        Thêm vào giỏ
-                      </button>
+                      <div className="w-full z-20" onMouseDown={(e) => e.stopPropagation()}>
+                        <ListingStockBadge inStock={product.inStock} className="w-full py-2.5" />
+                      </div>
                     </div>
                   </div>
                   </Link>

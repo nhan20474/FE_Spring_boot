@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { formatVND, productDetailPath } from '@/utils';
+import ListingStockBadge from '@/components/store/ListingStockBadge';
 import type { Product } from '@/types';
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
@@ -12,7 +12,6 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { addItem } = useCart();
   const { toggleItem, isInWishlist } = useWishlist();
   const [imgError, setImgError] = useState(false);
   const productId = (product as { productDetailId?: string }).productDetailId || product.id;
@@ -36,19 +35,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       rating: product.rating,
       reviews: product.reviews ?? 0,
     });
-  };
-
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      addItem({
-        productId,
-        name: product.name,
-        price: product.price,
-        image: product.image || '',
-      });
-    } catch (_) {}
   };
 
   return (
@@ -83,19 +69,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <span className="text-[10px] text-gray-400 font-bold ml-1">({product.reviews.toLocaleString()})</span>
         </div>
       </div>
-      <div className="flex items-center justify-between mt-4">
-        <div className="flex flex-col">
+      <div className="flex items-center justify-between gap-3 mt-4">
+        <div className="flex flex-col min-w-0">
           {product.oldPrice && <span className="text-xs line-through text-gray-400">{formatVND(product.oldPrice)}</span>}
           <span className="text-xl font-bold text-gray-900">{formatVND(product.price)}</span>
         </div>
-        <button
-          type="button"
-          className="p-2.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-xl transition-all inline-flex z-20"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={handleAddToCart}
-        >
-          <span className="material-icons text-lg">add_shopping_cart</span>
-        </button>
+        <ListingStockBadge inStock={product.inStock} className="px-2.5 py-1.5 shrink-0" />
       </div>
     </Link>
   );
