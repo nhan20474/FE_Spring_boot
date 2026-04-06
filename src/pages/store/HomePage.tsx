@@ -1,12 +1,25 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useApiFeaturedProducts } from '@/hooks/useProductApi';
+import { useApiCategories, useApiFeaturedProducts } from '@/hooks/useProductApi';
+import type { Category } from '@/types';
 import { useWishlist } from '@/context/WishlistContext';
 import ListingStockBadge from '@/components/store/ListingStockBadge';
 import { formatVND, productDetailPath } from '@/utils';
 import type { TrendingProduct as TrendingProductType } from '@/types';
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f1f5f9" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="sans-serif">📱</text></svg>');
+
+function normalizeCategoryLabel(s: string): string {
+  return s.trim().toLowerCase();
+}
+
+/** Trang tìm kiếm dùng `category` = slug; homepage nhóm theo tên → map tên → slug rồi dẫn `/category/:slug`. */
+function categoryBrowsePath(categoryName: string, categories: Category[]): string {
+  const key = normalizeCategoryLabel(categoryName);
+  const cat = categories.find((c) => normalizeCategoryLabel(c.name) === key);
+  if (cat?.slug) return `/category/${cat.slug}`;
+  return `/search?q=${encodeURIComponent(categoryName.trim())}`;
+}
 
 function StarRating({ rating }: { rating: number }) {
   const full = Math.floor(rating);
@@ -103,6 +116,15 @@ const TrendingCard: React.FC<TrendingCardProps> = ({ product, imageError, onImag
 const HomePage: React.FC = () => {
   const [failedImageIds, setFailedImageIds] = useState<Set<string>>(() => new Set());
   const { data: trendingProducts } = useApiFeaturedProducts();
+  const { data: categories } = useApiCategories();
+
+  const categoryPaths = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const name of new Set(trendingProducts.map((p) => p.category).filter(Boolean))) {
+      map.set(name, categoryBrowsePath(name, categories));
+    }
+    return map;
+  }, [trendingProducts, categories]);
 
   const markImageError = (id: string) => setFailedImageIds((prev) => new Set(prev).add(id));
 
@@ -135,7 +157,10 @@ const HomePage: React.FC = () => {
                   <div>
                     <h3 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">{categoryName}</h3>
                   </div>
-                  <Link to={`/search?category=${categoryName}`} className="text-primary font-bold hover:underline flex items-center gap-1">
+                  <Link
+                    to={categoryPaths.get(categoryName) ?? categoryBrowsePath(categoryName, categories)}
+                    className="text-primary font-bold hover:underline flex items-center gap-1"
+                  >
                     Xem tất cả <span className="material-icons text-sm">arrow_forward</span>
                   </Link>
                 </div>
