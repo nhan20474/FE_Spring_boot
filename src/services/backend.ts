@@ -12,6 +12,8 @@ import {
   setToken as storeToken,
   setStoredUser,
   clearToken,
+  getToken,
+  ApiError,
 } from './api';
 import type {
   CategoryDto,
@@ -433,6 +435,92 @@ export async function adminUpdateProduct(id: number | string, body: Partial<Admi
 /** DELETE /api/admin/products/{id} */
 export async function adminDeleteProduct(id: number | string): Promise<void> {
   return apiDelete<void>(`/admin/products/${id}`, { auth: true });
+}
+
+// ——— Admin: Excel import ———
+
+const ADMIN_API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api';
+
+export interface ExcelImportRowError {
+  row: number;
+  message: string;
+}
+
+export interface ExcelImportResult {
+  totalRows: number;
+  successCount: number;
+  errorCount: number;
+  errors: ExcelImportRowError[];
+}
+
+async function adminDownloadExcelTemplate(path: string, downloadFilename: string): Promise<void> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${ADMIN_API_BASE}${path}`, { headers });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Tải mẫu lỗi ${res.status}`;
+    try {
+      const j = JSON.parse(text) as { message?: string };
+      if (j.message) msg = j.message;
+    } catch {
+      if (text) msg = text;
+    }
+    throw new ApiError(msg, res.status);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = downloadFilename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** GET /api/admin/import/templates/products */
+export async function adminDownloadProductImportTemplate(): Promise<void> {
+  await adminDownloadExcelTemplate('/admin/import/templates/products', 'mau_san_pham.xlsx');
+}
+
+/** GET /api/admin/import/templates/users */
+export async function adminDownloadUserImportTemplate(): Promise<void> {
+  await adminDownloadExcelTemplate('/admin/import/templates/users', 'mau_nguoi_dung.xlsx');
+}
+
+async function postExcelImport(path: string, file: File): Promise<ExcelImportResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${ADMIN_API_BASE}${path}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Import lỗi ${res.status}`;
+    try {
+      const j = JSON.parse(text) as { message?: string };
+      if (j.message) msg = j.message;
+    } catch {
+      if (text) msg = text;
+    }
+    throw new ApiError(msg, res.status);
+  }
+  return res.json() as Promise<ExcelImportResult>;
+}
+
+/** POST /api/admin/import/products (multipart file) */
+export async function adminImportProductsExcel(file: File): Promise<ExcelImportResult> {
+  return postExcelImport('/admin/import/products', file);
+}
+
+/** POST /api/admin/import/users (multipart file) */
+export async function adminImportUsersExcel(file: File): Promise<ExcelImportResult> {
+  return postExcelImport('/admin/import/users', file);
 }
 
 // ——— Admin: Categories ———

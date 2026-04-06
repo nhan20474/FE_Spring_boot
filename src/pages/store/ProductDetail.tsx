@@ -165,17 +165,16 @@ const ProductDetail: React.FC = () => {
                   {colors.length > 0 && (
                     <div>
                       <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Màu sắc</p>
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">{selectedColor || colors[0]?.name}</p>
                       <div className="flex flex-wrap gap-2">
                         {colors.map((color) => (
                           <button
                             key={color.name}
                             type="button"
-                            title={color.name}
                             onClick={() => setSelectedColor(color.name)}
-                            className={`w-9 h-9 rounded-full flex-shrink-0 transition-all ${selectedColor === color.name ? 'ring-2 ring-offset-2 ring-primary ring-offset-white dark:ring-offset-slate-900 scale-105' : 'ring-1 ring-slate-200 dark:ring-slate-600 hover:ring-primary/40'}`}
-                            style={{ backgroundColor: color.hex }}
-                          />
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold leading-tight transition-colors ${selectedColor === color.name ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:border-primary/50'}`}
+                          >
+                            {color.name}
+                          </button>
                         ))}
                       </div>
                     </div>

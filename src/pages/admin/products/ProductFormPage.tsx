@@ -9,7 +9,6 @@ import type { CategoryDto } from '@/types/api';
 
 interface ColorRow {
   name: string;
-  hex: string;
 }
 
 interface SpecRow {
@@ -240,7 +239,7 @@ const ProductFormPage: React.FC = () => {
         stock: String(dto.stock ?? 0),
         categoryId: String(dto.categoryId),
         featured: Boolean(dto.featured),
-        colors: parseProductColorsFromApi(dto.colors ?? undefined),
+        colors: parseProductColorsFromApi(dto.colors ?? undefined).map((c) => ({ name: c.name })),
         storageOptions: parseProductStorageFromApi(dto.storageOptions ?? undefined),
         specSections: parseSpecsJsonToSections(dto.specifications ?? undefined),
       });
@@ -312,8 +311,6 @@ const ProductFormPage: React.FC = () => {
         result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
       );
 
-      const DEFAULT_COLOR_HEX = '#64748b';
-
       setForm((prev) => {
         const next: FormData = {
           ...prev,
@@ -332,12 +329,7 @@ const ProductFormPage: React.FC = () => {
 
         if (result.colors && result.colors.length > 0) {
           next.colors = result.colors
-            .map((c) => {
-              const name = c.name.trim();
-              const hex =
-                c.hex && /^#[0-9A-Fa-f]{6}$/.test(c.hex) ? c.hex : DEFAULT_COLOR_HEX;
-              return { name, hex };
-            })
+            .map((c) => ({ name: c.name.trim() }))
             .filter((c) => c.name.length > 0);
         }
 
@@ -379,9 +371,7 @@ const ProductFormPage: React.FC = () => {
     if (isNaN(stock) || stock < 0) return setError('Số lượng không hợp lệ.');
     if (isNaN(categoryId)) return setError('Vui lòng chọn danh mục.');
 
-    const colorPayload = form.colors
-      .map((c) => ({ name: c.name.trim(), hex: (c.hex || '#64748b').trim() || '#64748b' }))
-      .filter((c) => c.name.length > 0);
+    const colorPayload = form.colors.map((c) => ({ name: c.name.trim() })).filter((c) => c.name.length > 0);
     const storagePayload = form.storageOptions.map((s) => s.trim()).filter((s) => s.length > 0);
 
     const specificationsOut = buildSpecsJsonFromSections(form.specSections);
@@ -650,10 +640,10 @@ const ProductFormPage: React.FC = () => {
             {/* Màu sắc */}
             <div className="md:col-span-2">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <label className="block text-xs font-bold text-slate-600">Màu sắc (tên + mã hex)</label>
+                <label className="block text-xs font-bold text-slate-600">Màu sắc (chỉ tên hiển thị)</label>
                 <button
                   type="button"
-                  onClick={() => setForm((p) => ({ ...p, colors: [...p.colors, { name: '', hex: '#64748b' }] }))}
+                  onClick={() => setForm((p) => ({ ...p, colors: [...p.colors, { name: '' }] }))}
                   className="text-xs font-semibold text-primary hover:underline"
                 >
                   + Thêm màu
@@ -676,36 +666,8 @@ const ProductFormPage: React.FC = () => {
                             return { ...p, colors: next };
                           });
                         }}
-                        placeholder="Tên màu"
-                        className="flex-1 min-w-[120px] border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
-                      />
-                      <input
-                        type="color"
-                        value={/^#[0-9A-Fa-f]{6}$/.test(row.hex) ? row.hex : '#64748b'}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setForm((p) => {
-                            const next = [...p.colors];
-                            next[idx] = { ...next[idx], hex: v };
-                            return { ...p, colors: next };
-                          });
-                        }}
-                        className="h-9 w-12 cursor-pointer rounded border border-slate-200 bg-white"
-                        title="Chọn màu"
-                      />
-                      <input
-                        type="text"
-                        value={row.hex}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setForm((p) => {
-                            const next = [...p.colors];
-                            next[idx] = { ...next[idx], hex: v };
-                            return { ...p, colors: next };
-                          });
-                        }}
-                        placeholder="#1d1d1f"
-                        className="w-28 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono"
+                        placeholder="Tên màu (vd. Đen không gian)"
+                        className="flex-1 min-w-[160px] border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
                       />
                       <button
                         type="button"

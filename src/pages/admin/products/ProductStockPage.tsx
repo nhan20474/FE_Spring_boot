@@ -12,13 +12,21 @@ function colorDotsFromApi(colorsJson: string | null | undefined): StockColorDot[
   const seen = new Set<string>();
   const out: StockColorDot[] = [];
   for (const c of parsed) {
+    const name = c.name?.trim();
+    if (name) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const hex = (c.hex || '').trim() || '#64748b';
+      out.push({ hex, name });
+      continue;
+    }
     const hex = c.hex.trim();
     if (!hex) continue;
-    const key = hex.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const name = c.name?.trim();
-    out.push(name ? { hex, name } : { hex });
+    const hkey = `hex:${hex.toLowerCase()}`;
+    if (seen.has(hkey)) continue;
+    seen.add(hkey);
+    out.push({ hex });
   }
   return out;
 }

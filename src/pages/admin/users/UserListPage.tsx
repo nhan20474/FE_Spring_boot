@@ -1,4 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import {
+  AdminUserExcelImportMeta,
+  AdminUserExcelImportToolbar,
+  useAdminUserExcelImport,
+} from '@/components/admin/AdminExcelImportPanels';
 import * as backend from '@/services/backend';
 import type { AdminUserDto } from '@/types/api';
 
@@ -58,6 +63,8 @@ const UserListPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(total / size));
 
+  const userExcelImport = useAdminUserExcelImport(load);
+
   return (
     <div className="space-y-6 max-w-6xl">
       <header>
@@ -65,23 +72,28 @@ const UserListPage: React.FC = () => {
         <p className="text-sm text-slate-600 mt-1">Danh sách tài khoản — đổi vai trò / xóa (cẩn trọng).</p>
       </header>
 
-      <div className="flex flex-wrap gap-3 items-end">
-        <label className="block">
-          <span className="text-xs font-bold text-slate-600">Tìm theo email/tên</span>
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') applySearch();
-            }}
-            className="mt-1 block rounded-lg border border-slate-200 px-3 py-2 text-sm min-w-[220px]"
-            placeholder="email…"
-          />
-        </label>
-        <button type="button" onClick={applySearch} className="rounded-xl bg-slate-900 text-white font-semibold px-4 py-2 text-sm">
-          Tìm
-        </button>
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <label className="block">
+            <span className="text-xs font-bold text-slate-600">Tìm theo email/tên</span>
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applySearch();
+              }}
+              className="mt-1 block rounded-lg border border-slate-200 px-3 py-2 text-sm min-w-[220px]"
+              placeholder="email…"
+            />
+          </label>
+          <button type="button" onClick={applySearch} className="rounded-xl bg-slate-900 text-white font-semibold px-4 py-2 text-sm">
+            Tìm
+          </button>
+        </div>
+        <AdminUserExcelImportToolbar {...userExcelImport} />
       </div>
+
+      <AdminUserExcelImportMeta {...userExcelImport} />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

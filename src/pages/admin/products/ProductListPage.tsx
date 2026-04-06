@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminProductsTabs from '@/components/admin/AdminProductsTabs';
+import {
+  AdminProductExcelImportMeta,
+  AdminProductExcelImportToolbar,
+  useAdminProductExcelImport,
+} from '@/components/admin/AdminExcelImportPanels';
 import * as backend from '@/services/backend';
 import type { ProductDto } from '@/types/api';
 
@@ -146,6 +151,8 @@ const ProductListPage: React.FC = () => {
 
   const handleDeleteClick = (id: number) => setDeleteConfirm(id);
 
+  const productExcelImport = useAdminProductExcelImport(fetchProducts);
+
   const handleDeleteConfirm = async () => {
     if (deleteConfirm == null) return;
     try {
@@ -162,23 +169,29 @@ const ProductListPage: React.FC = () => {
     <div className="space-y-6">
       <AdminProductsTabs />
 
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] leading-[44px] font-normal tracking-tight text-[#202224]">
-            Sản phẩm
-          </h1>
-          <p className="text-xs font-semibold text-slate-500 mt-1">
-            {loading ? 'Đang tải…' : `${products.length} sản phẩm`}
-          </p>
-        </div>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div>
+            <h1 className="text-[32px] leading-[44px] font-normal tracking-tight text-[#202224]">
+              Sản phẩm
+            </h1>
+            <p className="text-xs font-semibold text-slate-500 mt-1">
+              {loading ? 'Đang tải…' : `${products.length} sản phẩm`}
+            </p>
+          </div>
 
-        <Link
-          to="/admin/products/new"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-white px-4 py-2 text-sm font-semibold hover:bg-blue-600 transition-colors shrink-0"
-        >
-          <span className="material-icons text-[18px]">add</span>
-          Thêm mới
-        </Link>
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <AdminProductExcelImportToolbar {...productExcelImport} />
+            <Link
+              to="/admin/products/new"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-white px-4 py-2 text-sm font-semibold hover:bg-blue-600 transition-colors shrink-0"
+            >
+              <span className="material-icons text-[18px]">add</span>
+              Thêm mới
+            </Link>
+          </div>
+        </div>
+        <AdminProductExcelImportMeta {...productExcelImport} />
       </div>
 
       {error && (
