@@ -312,13 +312,51 @@ const ProductFormPage: React.FC = () => {
         result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
       );
 
-      setForm((prev) => ({
-        ...prev,
-        name: result.name,
-        description: result.description,
-        price: result.suggestedPrice > 0 ? String(result.suggestedPrice) : prev.price,
-        categoryId: matchedCat ? String(matchedCat.id) : prev.categoryId,
-      }));
+      const DEFAULT_COLOR_HEX = '#64748b';
+
+      setForm((prev) => {
+        const next: FormData = {
+          ...prev,
+          name: result.name,
+          description: result.description,
+          price:
+            result.suggestedPrice > 0
+              ? String(Math.round(result.suggestedPrice))
+              : prev.price,
+          categoryId: matchedCat ? String(matchedCat.id) : prev.categoryId,
+        };
+
+        if (result.suggestedStock != null) {
+          next.stock = String(result.suggestedStock);
+        }
+
+        if (result.colors && result.colors.length > 0) {
+          next.colors = result.colors
+            .map((c) => {
+              const name = c.name.trim();
+              const hex =
+                c.hex && /^#[0-9A-Fa-f]{6}$/.test(c.hex) ? c.hex : DEFAULT_COLOR_HEX;
+              return { name, hex };
+            })
+            .filter((c) => c.name.length > 0);
+        }
+
+        if (result.storageOptions && result.storageOptions.length > 0) {
+          next.storageOptions = result.storageOptions
+            .map((s) => String(s).trim())
+            .filter((s) => s.length > 0);
+        }
+
+        if (result.specifications && Object.keys(result.specifications).length > 0) {
+          const specJson = JSON.stringify(result.specifications);
+          const sections = parseSpecsJsonToSections(specJson);
+          if (sections.length > 0) {
+            next.specSections = sections;
+          }
+        }
+
+        return next;
+      });
       setAiOpen(false);
       setAiKeyword('');
     } catch (e) {

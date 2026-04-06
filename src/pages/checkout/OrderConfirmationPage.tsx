@@ -42,6 +42,9 @@ const OrderConfirmationPage: React.FC = () => {
     country: string;
   } | null>(null);
   const [orderLoadError, setOrderLoadError] = useState<string | null>(null);
+  const [orderLoading, setOrderLoading] = useState(false);
+
+  const hasNumericOrderId = orderIdFromUrl != null && Number.isFinite(orderIdFromUrl);
 
   const shouldFetchOrder =
     orderIdFromUrl != null &&
@@ -55,10 +58,12 @@ const OrderConfirmationPage: React.FC = () => {
     if (!shouldFetchOrder || orderIdFromUrl == null) {
       setApiOrder(null);
       setApiShipping(null);
+      setOrderLoading(false);
       return;
     }
 
     let cancelled = false;
+    setOrderLoading(true);
 
     getOrder(orderIdFromUrl)
       .then(async (dto) => {
@@ -112,6 +117,9 @@ const OrderConfirmationPage: React.FC = () => {
               ? e.message
               : 'Không tải được đơn hàng.';
         setOrderLoadError(msg);
+      })
+      .finally(() => {
+        if (!cancelled) setOrderLoading(false);
       });
 
     return () => {
@@ -121,13 +129,33 @@ const OrderConfirmationPage: React.FC = () => {
 
   const order = orderConfirmationSample;
   const { delivery } = order;
-  const deliveryShippingToShow = apiShipping ?? delivery.shippingAddress;
+
+  /** Có orderId trên URL/state → không dùng dữ liệu mẫu làm đơn thật. */
+  const useSampleFallback = !hasNumericOrderId;
+
+  const deliveryShippingToShow = apiShipping
+    ? apiShipping
+    : useSampleFallback
+      ? delivery.shippingAddress
+      : {
+          name: '—',
+          street: '—',
+          city: '',
+          stateZip: '',
+          country: '',
+        };
+
   const payment = useMemo(() => {
     if (apiOrder?.paymentMethod) return paymentMethodToBrand(apiOrder.paymentMethod);
-    return { brand: order.payment.brand, last4: order.payment.last4 };
-  }, [apiOrder?.paymentMethod]);
+    if (useSampleFallback) return { brand: order.payment.brand, last4: order.payment.last4 };
+    return { brand: '—', last4: '—', expires: '—' };
+  }, [apiOrder?.paymentMethod, order.payment.brand, order.payment.last4, useSampleFallback]);
 
-  const orderIdToShow = apiOrder?.id ? String(apiOrder.id) : String(order.orderId);
+  const orderIdToShow = apiOrder?.id
+    ? String(apiOrder.id)
+    : hasNumericOrderId
+      ? String(orderIdFromUrl)
+      : String(order.orderId);
 
   const lineItemsToRender = useMemo(() => {
     if (apiOrder?.items?.length) {
@@ -140,15 +168,18 @@ const OrderConfirmationPage: React.FC = () => {
         price: it.priceAtOrder,
       }));
     }
-    return orderConfirmationSample.lineItems.map((item) => ({
-      key: item.id,
-      name: item.name,
-      image: item.image,
-      variant: item.variant,
-      quantity: item.quantity,
-      price: item.price,
-    }));
-  }, [apiOrder]);
+    if (useSampleFallback) {
+      return orderConfirmationSample.lineItems.map((item) => ({
+        key: item.id,
+        name: item.name,
+        image: item.image,
+        variant: item.variant,
+        quantity: item.quantity,
+        price: item.price,
+      }));
+    }
+    return [];
+  }, [apiOrder, useSampleFallback]);
 
   const totals = useMemo(() => {
     if (apiOrder) {
@@ -157,19 +188,34 @@ const OrderConfirmationPage: React.FC = () => {
       const total = Number(apiOrder.totalPrice ?? 0);
       return { subtotal, shipping, tax: 0, total };
     }
-    return {
-      subtotal: orderConfirmationSample.subtotal,
-      shipping: orderConfirmationSample.shipping,
-      tax: orderConfirmationSample.tax,
-      total: orderConfirmationSample.total,
-    };
-  }, [apiOrder]);
+    if (useSampleFallback) {
+      return {
+        subtotal: orderConfirmationSample.subtotal,
+        shipping: orderConfirmationSample.shipping,
+        tax: orderConfirmationSample.tax,
+        total: orderConfirmationSample.total,
+      };
+    }
+    return { subtotal: null as number | null, shipping: null as number | null, tax: 0, total: null as number | null };
+  }, [apiOrder, useSampleFallback]);
 
-  const showSampleWhenNoApiOrder =
-    !apiOrder && (!orderIdFromUrl || !shouldFetchOrder) && !orderLoadError;
+  const showSampleWhenNoApiOrder = useSampleFallback && !apiOrder && !orderLoadError;
 
-  const showErrorForIntendedApi =
-    orderIdFromUrl != null && shouldFetchOrder && orderLoadError && !apiOrder;
+  /** Lỗi tải đơn hoặc không đủ quyền — chỉ khi URL có mã đơn (không lẫn với demo). */
+  const showErrorForIntendedApi = hasNumericOrderId && Boolean(orderLoadError) && !apiOrder;
+
+  const waitingForAuthInit = hasNumericOrderId && !isInitialized;
+
+  const needLoginForOrder = hasNumericOrderId && isInitialized && !isAuthenticated;
+
+  const needApiConfig = hasNumericOrderId && isInitialized && isAuthenticated && !isApiConfigured();
+
+  const showRealOrderPendingUi =
+    hasNumericOrderId &&
+    !useSampleFallback &&
+    !apiOrder &&
+    !orderLoadError &&
+    (orderLoading || waitingForAuthInit || needLoginForOrder || needApiConfig);
 
   return (
     <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
@@ -215,12 +261,18 @@ const OrderConfirmationPage: React.FC = () => {
           </div>
         )}
 
-        {orderIdFromUrl != null && !isAuthenticated && isInitialized && (
+        {needLoginForOrder && (
           <div className="mb-8 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             Đăng nhập để xem chi tiết đơn #{orderIdFromUrl}.
             <Link to="/login" className="ml-2 font-semibold text-primary hover:underline">
               Đăng nhập
             </Link>
+          </div>
+        )}
+
+        {needApiConfig && (
+          <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Chưa cấu hình API (VITE_API_URL). Không thể tải đơn #{orderIdFromUrl} từ máy chủ.
           </div>
         )}
 
@@ -231,7 +283,17 @@ const OrderConfirmationPage: React.FC = () => {
           </div>
           <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-3">Cảm ơn bạn đã đặt hàng!</h1>
           <p className="text-lg text-slate-600 dark:text-slate-400">Đơn hàng #{orderIdToShow}</p>
-          <p className="text-slate-500 dark:text-slate-500 mt-2">Email xác nhận đã được gửi đến hộp thư của bạn.</p>
+          {waitingForAuthInit || orderLoading ? (
+            <p className="text-slate-500 dark:text-slate-500 mt-2">Đang tải thông tin đơn hàng…</p>
+          ) : apiOrder ? (
+            <p className="text-slate-500 dark:text-slate-500 mt-2">Email xác nhận đã được gửi đến hộp thư của bạn.</p>
+          ) : hasNumericOrderId ? (
+            <p className="text-slate-500 dark:text-slate-500 mt-2">
+              Chi tiết đơn hiển thị bên dưới sau khi tải xong hoặc sau khi bạn đăng nhập.
+            </p>
+          ) : (
+            <p className="text-slate-500 dark:text-slate-500 mt-2">Email xác nhận đã được gửi đến hộp thư của bạn.</p>
+          )}
           {apiOrder?.status && (
             <p className="text-sm text-slate-500 mt-2">Trạng thái: {apiOrder.status}</p>
           )}
@@ -268,6 +330,25 @@ const OrderConfirmationPage: React.FC = () => {
                 )}
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {lineItemsToRender.length === 0 && showErrorForIntendedApi && (
+                  <div className="p-8 text-center text-sm text-slate-500">
+                    Không thể hiển thị chi tiết đơn. Vui lòng xem thông báo phía trên.
+                  </div>
+                )}
+                {lineItemsToRender.length === 0 && showRealOrderPendingUi && (
+                  <div className="p-8 text-center text-sm text-slate-500">
+                    {waitingForAuthInit || orderLoading
+                      ? 'Đang tải danh sách sản phẩm…'
+                      : needLoginForOrder
+                        ? 'Đăng nhập để xem sản phẩm trong đơn.'
+                        : needApiConfig
+                          ? 'Cấu hình API để tải đơn từ máy chủ.'
+                          : 'Đang cập nhật…'}
+                  </div>
+                )}
+                {lineItemsToRender.length === 0 && apiOrder && !apiOrder.items?.length && (
+                  <div className="p-8 text-center text-sm text-slate-500">Đơn không có dòng sản phẩm.</div>
+                )}
                 {lineItemsToRender.map((item) => (
                   <div key={item.key} className="p-6 flex gap-6 items-center">
                     <img
@@ -284,7 +365,7 @@ const OrderConfirmationPage: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <span className="font-bold text-slate-900 dark:text-white">
-                        {formatVND(item.price)}
+                        {formatVND(Number(item.price) || 0)}
                       </span>
                     </div>
                   </div>
@@ -310,7 +391,7 @@ const OrderConfirmationPage: React.FC = () => {
                 <div className="pt-3 mt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                   <span className="text-lg font-bold text-slate-900 dark:text-white">Tổng cộng</span>
                   <span className="text-2xl font-bold text-primary">
-                    {formatVND(totals.total)}
+                    {totals.total != null ? formatVND(totals.total) : '—'}
                   </span>
                 </div>
               </div>
@@ -358,7 +439,9 @@ const OrderConfirmationPage: React.FC = () => {
                   <span className="text-[10px] font-bold text-slate-400">{payment.brand}</span>
                 </div>
                 <p className="text-slate-700 dark:text-slate-200 font-medium text-sm">
-                  {payment.brand} kết thúc bằng {payment.last4}
+                  {payment.last4 && payment.last4 !== '—'
+                    ? `${payment.brand} kết thúc bằng ${payment.last4}`
+                    : payment.brand}
                 </p>
               </div>
             </div>
