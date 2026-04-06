@@ -215,7 +215,7 @@ const ProductDetail: React.FC = () => {
                         variant: [selectedColor, selectedSize].filter(Boolean).join(', ') || undefined,
                       });
                       if (!r.ok) {
-                        window.alert(r.message);
+                        window.alert((r as { message?: string }).message ?? 'Không thể thêm vào giỏ');
                         return;
                       }
                       setJustAddedToCart(true);

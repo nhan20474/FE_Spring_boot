@@ -70,6 +70,7 @@ export function useApiFeaturedProducts(): { data: TrendingProduct[]; loading: bo
 
 export interface UseApiProductsParams {
   category?: number;
+  includeDescendants?: boolean;
   q?: string;
   page?: number;
   size?: number;
@@ -88,7 +89,7 @@ export function useApiProducts(params: UseApiProductsParams = {}): {
   const [data, setData] = useState<ListingProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { category, q, page = 0, size = 100, enabled = true, sortBy, sortDir } = params;
+  const { category, includeDescendants, q, page = 0, size = 100, enabled = true, sortBy, sortDir } = params;
 
   const fetchData = useCallback(async () => {
     if (!isApiConfigured()) return;
@@ -96,7 +97,7 @@ export function useApiProducts(params: UseApiProductsParams = {}): {
     setLoading(true);
     setError(null);
     try {
-      const list = await backend.getProducts({ category, q, page, size, sortBy, sortDir });
+      const list = await backend.getProducts({ category, includeDescendants, q, page, size, sortBy, sortDir });
       setData(list.map(mapProductDtoToListing));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load products');
@@ -104,7 +105,7 @@ export function useApiProducts(params: UseApiProductsParams = {}): {
     } finally {
       setLoading(false);
     }
-  }, [category, q, page, size, enabled, sortBy, sortDir]);
+  }, [category, includeDescendants, q, page, size, enabled, sortBy, sortDir]);
 
   useEffect(() => {
     fetchData();
@@ -113,8 +114,13 @@ export function useApiProducts(params: UseApiProductsParams = {}): {
   return { data, loading, error, refetch: fetchData };
 }
 
-/** Fetch products by category slug — resolves slug → id then fetches */
-export function useApiProductsBySlug(categorySlug: string, sortBy?: string, sortDir?: string): {
+/** Fetch products by category slug — resolves slug → id; mặc định gồm cả sản phẩm ở danh mục con. */
+export function useApiProductsBySlug(
+  categorySlug: string,
+  sortBy?: string,
+  sortDir?: string,
+  includeDescendants: boolean = true,
+): {
   data: ListingProduct[];
   loading: boolean;
 } {
@@ -123,7 +129,9 @@ export function useApiProductsBySlug(categorySlug: string, sortBy?: string, sort
   const categoryId = cat ? Number(cat.id) : undefined;
   const enabled = !catsLoading && categoryId != null;
   const { data: products, loading: productsLoading } = useApiProducts(
-    categoryId != null ? { category: categoryId, enabled, sortBy, sortDir } : { enabled: false }
+    categoryId != null
+      ? { category: categoryId, includeDescendants, enabled, sortBy, sortDir }
+      : { enabled: false },
   );
   return { data: products, loading: catsLoading || productsLoading };
 }

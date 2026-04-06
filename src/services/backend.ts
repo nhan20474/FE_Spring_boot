@@ -48,6 +48,8 @@ import type { CartItem } from '@/types';
 
 export interface ProductsParams {
   category?: number;
+  /** true: lọc sản phẩm thuộc danh mục này và mọi danh mục con (API `includeDescendants`). */
+  includeDescendants?: boolean;
   q?: string;
   page?: number;
   size?: number;
@@ -281,10 +283,11 @@ export async function getCategories(): Promise<CategoryDto[]> {
   return extractList(raw);
 }
 
-/** GET /api/products?category=&q=&page=&size= */
+/** GET /api/products?category=&includeDescendants=&q=&page=&size= */
 export async function getProducts(params: ProductsParams = {}): Promise<ProductDto[]> {
   const sp = new URLSearchParams();
   if (params.category != null) sp.set('category', String(params.category));
+  if (params.includeDescendants === true) sp.set('includeDescendants', 'true');
   if (params.q != null && params.q !== '') sp.set('q', params.q);
   if (params.page != null) sp.set('page', String(params.page));
   if (params.size != null) sp.set('size', String(params.size));
