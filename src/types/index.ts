@@ -97,6 +97,9 @@ export interface OrderDetailsLineItem {
   specs: string;
   quantity: number;
   price: number;
+  /** Có khi chi tiết đơn lấy từ API — dùng cho đánh giá theo lần mua */
+  orderItemId?: number;
+  productId?: number | null;
 }
 
 export interface OrderDetailsData {

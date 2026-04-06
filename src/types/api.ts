@@ -28,6 +28,10 @@ export interface ProductDto {
   storageOptions?: string | null;
   /** JSON string: object thông số kỹ thuật */
   specifications?: string | null;
+  /** Điểm sao trung bình (0 nếu chưa có đánh giá). */
+  rating?: number | null;
+  /** Số lượt đánh giá. */
+  reviews?: number | null;
 }
 
 export interface AuthRequest {
@@ -90,6 +94,8 @@ export interface CreateOrderRequest {
 }
 
 export interface OrderItemDto {
+  /** Id dòng đơn — dùng cho PUT /api/product-ratings */
+  id: number;
   productId: number | null;
   productName: string;
   productImage?: string | null;
@@ -271,6 +277,21 @@ export interface WishlistItemDto {
   oldPrice?: number | null;
   rating?: number | null;
   reviews?: number | null;
+}
+
+/** PUT /api/product-ratings */
+export interface UpsertProductRatingRequest {
+  orderItemId: number;
+  rating: number;
+}
+
+export interface ProductRatingResponseDto {
+  id: number;
+  orderItemId: number | null;
+  productId: number | null;
+  rating: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 // ——— Cart DTOs (matches backend CartDto / CartItemDto) ———

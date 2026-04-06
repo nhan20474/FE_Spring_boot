@@ -41,6 +41,8 @@ import type {
   AdminUsersResponse,
   AdminUserDto,
   WishlistItemDto,
+  UpsertProductRatingRequest,
+  ProductRatingResponseDto,
 } from '@/types/api';
 import type { CartItem } from '@/types';
 
@@ -216,6 +218,11 @@ export async function addWishlistItemApi(productId: number): Promise<WishlistIte
 /** DELETE /api/wishlist/items/{productId} */
 export async function removeWishlistItemApi(productId: number): Promise<WishlistItemDto[]> {
   return apiDelete<WishlistItemDto[]>(`/wishlist/items/${productId}`, { auth: true });
+}
+
+/** PUT /api/product-ratings — đánh giá sao theo dòng đơn (đơn đã giao thành công). */
+export async function upsertProductRating(body: UpsertProductRatingRequest): Promise<ProductRatingResponseDto> {
+  return apiPut<ProductRatingResponseDto>('/product-ratings', body, { auth: true });
 }
 
 /** GET /api/admin/coupons */

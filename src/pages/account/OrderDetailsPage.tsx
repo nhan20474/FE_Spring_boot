@@ -9,6 +9,7 @@ import {
   getOrderStatusHistory,
   getOrderReturns,
   createOrderReturn,
+  upsertProductRating,
 } from '@/services/backend';
 import { ApiError, isApiConfigured } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
@@ -70,6 +71,8 @@ function mapOrderDtoToDetails(dto: OrderDto, shippingAddress?: SavedAddress | nu
       specs,
       quantity: item.quantity,
       price: Number(item.priceAtOrder),
+      orderItemId: item.id,
+      productId: item.productId,
     };
   });
   const subtotalCalc = lineItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
@@ -142,6 +145,7 @@ const OrderDetailsPage: React.FC = () => {
   const [returnForm, setReturnForm] = useState({ reason: '', note: '' });
   const [returnSubmitting, setReturnSubmitting] = useState(false);
   const [returnError, setReturnError] = useState<string | null>(null);
+  const [ratingBusyOrderItemId, setRatingBusyOrderItemId] = useState<number | null>(null);
 
   const loadExtras = (id: string) => {
     if (!isApiConfigured() || !isAuthenticated) return;
@@ -262,6 +266,35 @@ const OrderDetailsPage: React.FC = () => {
     }
   };
 
+  const handleRateOrderLine = async (orderItemId: number | undefined) => {
+    if (orderItemId == null) {
+      window.alert('Chỉ đánh giá được khi xem đơn từ API (có mã dòng hàng).');
+      return;
+    }
+    if (!isApiConfigured() || !isAuthenticated) {
+      window.alert('Vui lòng đăng nhập và mở đơn từ cửa hàng.');
+      return;
+    }
+    const raw = window.prompt('Chọn số sao từ 1 đến 5', '5');
+    if (raw == null) return;
+    const n = Number.parseInt(String(raw).trim(), 10);
+    if (Number.isNaN(n) || n < 1 || n > 5) {
+      window.alert('Số sao không hợp lệ.');
+      return;
+    }
+    setRatingBusyOrderItemId(orderItemId);
+    try {
+      await upsertProductRating({ orderItemId, rating: n });
+      window.alert('Cảm ơn bạn đã đánh giá!');
+    } catch (err: unknown) {
+      const msg =
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Không gửi được đánh giá.';
+      window.alert(msg);
+    } finally {
+      setRatingBusyOrderItemId(null);
+    }
+  };
+
   const handleCreateReturn = async () => {
     if (!order || !showApiExtras) return;
     setReturnError(null);
@@ -328,6 +361,8 @@ const OrderDetailsPage: React.FC = () => {
   }
 
   const discount = order.discountAmount ?? 0;
+  const orderStatusNorm = String(order.statusRaw ?? '').toLowerCase();
+  const canRatePurchasedLines = orderStatusNorm === 'delivered' || orderStatusNorm === 'completed';
 
   return (
     <div className="min-h-screen flex flex-col bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
@@ -462,7 +497,7 @@ const OrderDetailsPage: React.FC = () => {
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {order.lineItems.map((item, idx) => (
                     <div
-                      key={`${item.name}-${idx}`}
+                      key={item.orderItemId != null ? `oi-${item.orderItemId}` : `${item.name}-${idx}`}
                       className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6"
                     >
                       <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800 rounded-xl p-3 flex items-center justify-center flex-shrink-0">
@@ -486,12 +521,20 @@ const OrderDetailsPage: React.FC = () => {
                           </span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[12px] font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
-                      >
-                        Viết đánh giá
-                      </button>
+                      {canRatePurchasedLines && item.orderItemId != null ? (
+                        <button
+                          type="button"
+                          disabled={ratingBusyOrderItemId === item.orderItemId}
+                          onClick={() => void handleRateOrderLine(item.orderItemId)}
+                          className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[12px] font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex-shrink-0 disabled:opacity-50"
+                        >
+                          {ratingBusyOrderItemId === item.orderItemId ? 'Đang gửi…' : 'Viết đánh giá'}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-medium flex-shrink-0 max-w-[140px] text-right">
+                          {canRatePurchasedLines ? 'Cần mở đơn từ API để đánh giá' : 'Đánh giá sau khi giao thành công'}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
