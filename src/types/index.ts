@@ -1,3 +1,5 @@
+import type { OrderItemDto } from './api';
+
 export interface Product {
   id: string;
   /** Slug từ API — dùng cho URL /product/:slug */
@@ -47,6 +49,8 @@ export interface OrderHistoryCardItem {
   extraLine: string;
   extraType: 'return' | 'shipping' | 'refund';
   secondaryAction: 'buy_again' | 'track' | 'reorder';
+  /** Dòng đơn từ API — dùng cho Mua lại; dữ liệu mock không có */
+  orderLineItems?: OrderItemDto[];
 }
 
 export interface OrderConfirmationLineItem {

@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { orderHistoryCards } from '@/data';
 import type { OrderHistoryCardItem } from '@/types';
 import { useAuth } from '@/context/AuthContext';
-import { getOrders } from '@/services/backend';
+import { useCart } from '@/context/CartContext';
+import { getOrders, getOrder } from '@/services/backend';
 import { isApiConfigured } from '@/services/api';
-import type { OrderDto } from '@/types/api';
+import type { OrderDto, OrderItemDto } from '@/types/api';
 import { formatDate } from '@/utils/formatDate';
 import { formatVND } from '@/utils';
 import AccountSidebar from '@/components/account/AccountSidebar';
@@ -16,8 +17,16 @@ import Breadcrumb from '@/components/common/Breadcrumb';
 const PLACEHOLDER_IMG = 'https://picsum.photos/100/100?random=order';
 const PAGE_SIZE = 3;
 
+function orderLineVariant(item: OrderItemDto): string | undefined {
+  const parts = [item.selectedColor, item.selectedStorage]
+    .map((x) => (typeof x === 'string' ? x.trim() : ''))
+    .filter(Boolean);
+  return parts.length ? parts.join(', ') : undefined;
+}
+
 function mapOrderDtoToCard(dto: OrderDto): OrderHistoryCardItem {
-  const first = dto.items[0];
+  const items = Array.isArray(dto.items) ? dto.items : [];
+  const first = items[0];
   const dateFormatted = formatDate(dto.createdAt);
   return {
     id: String(dto.id),
@@ -31,6 +40,7 @@ function mapOrderDtoToCard(dto: OrderDto): OrderHistoryCardItem {
     extraLine: '',
     extraType: 'return',
     secondaryAction: 'buy_again',
+    orderLineItems: items,
   };
 }
 
@@ -65,13 +75,88 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 const OrderHistoryPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { addItem } = useCart();
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState('Tất cả đơn hàng');
   const [apiOrders, setApiOrders] = useState<OrderHistoryCardItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
 
   const useApi = isApiConfigured() && isAuthenticated;
+
+  const resolveOrderLines = useCallback(
+    async (order: OrderHistoryCardItem): Promise<OrderItemDto[]> => {
+      let raw = order.orderLineItems ?? [];
+      if (!useApi) return raw;
+      const withPid = raw.filter((l) => l.productId != null);
+      if (withPid.length > 0) return raw;
+      try {
+        const dto = await getOrder(order.id);
+        return Array.isArray(dto.items) ? dto.items : [];
+      } catch {
+        return raw;
+      }
+    },
+    [useApi],
+  );
+
+  const handleBuyAgain = useCallback(
+    async (order: OrderHistoryCardItem) => {
+      if (!useApi) {
+        window.alert('Đăng nhập và dùng đơn từ cửa hàng (API) để mua lại. Dữ liệu mẫu trên trang này không có sản phẩm gắn kho.');
+        return;
+      }
+      setReorderingId(order.id);
+      try {
+        const lines = await resolveOrderLines(order);
+        const toAdd = lines.filter((l) => l.productId != null);
+        if (toAdd.length === 0) {
+          window.alert('Đơn không còn sản phẩm hợp lệ để thêm vào giỏ.');
+          return;
+        }
+        const errors: string[] = [];
+        for (const line of toAdd) {
+          const res = await addItem({
+            productId: String(line.productId),
+            name: line.productName,
+            price: Number(line.priceAtOrder),
+            image: line.productImage ?? '',
+            quantity: Math.max(1, Math.floor(Number(line.quantity) || 1)),
+            variant: orderLineVariant(line),
+            selectedColor: line.selectedColor ?? undefined,
+            selectedStorage: line.selectedStorage ?? undefined,
+          });
+          if (!res.ok) errors.push(res.message);
+        }
+        if (errors.length === toAdd.length) {
+          window.alert(errors[0] ?? 'Không thêm được sản phẩm vào giỏ.');
+          return;
+        }
+        if (errors.length > 0) {
+          window.alert(`Đã thêm một phần sản phẩm. Chi tiết:\n${errors.join('\n')}`);
+        }
+        navigate('/cart');
+      } finally {
+        setReorderingId(null);
+      }
+    },
+    [addItem, navigate, resolveOrderLines, useApi],
+  );
+
+  const handleSecondaryClick = useCallback(
+    (order: OrderHistoryCardItem) => {
+      if (order.secondaryAction === 'track') {
+        navigate(`/order/${order.id}`);
+        return;
+      }
+      if (order.secondaryAction === 'buy_again' || order.secondaryAction === 'reorder') {
+        void handleBuyAgain(order);
+      }
+    },
+    [handleBuyAgain, navigate],
+  );
 
   useEffect(() => {
     if (!useApi) return;
@@ -241,11 +326,25 @@ const OrderHistoryPage: React.FC = () => {
                     <div className="flex gap-2 flex-shrink-0">
                       <button
                         type="button"
-                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[12px] font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                        disabled={
+                          reorderingId === order.id ||
+                          ((order.secondaryAction === 'buy_again' || order.secondaryAction === 'reorder') && !useApi)
+                        }
+                        title={
+                          !useApi && (order.secondaryAction === 'buy_again' || order.secondaryAction === 'reorder')
+                            ? 'Chỉ khả dụng khi đã đăng nhập và tải đơn từ cửa hàng'
+                            : undefined
+                        }
+                        onClick={() => handleSecondaryClick(order)}
+                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[12px] font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:pointer-events-none"
                       >
-                        {order.secondaryAction === 'buy_again' && 'Mua lại'}
-                        {order.secondaryAction === 'track' && 'Theo dõi đơn'}
-                        {order.secondaryAction === 'reorder' && 'Đặt lại'}
+                        {reorderingId === order.id
+                          ? 'Đang thêm…'
+                          : order.secondaryAction === 'buy_again'
+                            ? 'Mua lại'
+                            : order.secondaryAction === 'track'
+                              ? 'Theo dõi đơn'
+                              : 'Đặt lại'}
                       </button>
                     </div>
                   </div>

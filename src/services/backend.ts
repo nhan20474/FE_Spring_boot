@@ -715,12 +715,24 @@ export async function addCartItem(payload: {
   image: string;
   quantity?: number;
   variant?: string;
+  selectedColor?: string;
+  selectedStorage?: string;
 }): Promise<CartItem[]> {
-  const dto = await apiPost<CartDto>('/cart/items', {
+  const body: Record<string, unknown> = {
     productId: Number(payload.productId),
     quantity: payload.quantity ?? 1,
     variant: payload.variant,
-  }, { auth: true });
+    name: payload.name,
+    price: payload.price,
+    image: payload.image,
+  };
+  if (payload.selectedColor != null && payload.selectedColor !== '') {
+    body.selectedColor = payload.selectedColor;
+  }
+  if (payload.selectedStorage != null && payload.selectedStorage !== '') {
+    body.selectedStorage = payload.selectedStorage;
+  }
+  const dto = await apiPost<CartDto>('/cart/items', body, { auth: true });
   return mapCartDto(dto);
 }
 

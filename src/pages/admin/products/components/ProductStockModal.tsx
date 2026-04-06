@@ -44,7 +44,7 @@ const ProductStockModal: React.FC<ProductStockModalProps> = ({
         category: initialProduct.category,
         price: String(initialProduct.price),
         piece: String(initialProduct.piece),
-        colors: [...initialProduct.colors],
+        colors: initialProduct.colorDots.map((d) => d.hex),
         image: initialProduct.image,
       });
     } else {
@@ -84,13 +84,14 @@ const ProductStockModal: React.FC<ProductStockModalProps> = ({
     if (Number.isNaN(price) || price < 0) return;
     if (Number.isNaN(piece) || piece < 0) return;
 
+    const hexes = form.colors.length > 0 ? form.colors : [STOCK_COLOR_PRESETS[0].hex];
     const product: StockProduct = {
       id: initialProduct?.id ?? `ps-${Date.now()}`,
       name,
       category: form.category,
       price,
       piece,
-      colors: form.colors.length > 0 ? form.colors : [STOCK_COLOR_PRESETS[0].hex],
+      colorDots: hexes.map((hex) => ({ hex })),
       image: form.image || 'https://picsum.photos/seed/placeholder/120/120',
     };
     onSave(product);

@@ -28,6 +28,9 @@ export interface AddToCartPayload {
   price: number;
   image: string;
   variant?: string;
+  quantity?: number;
+  selectedColor?: string;
+  selectedStorage?: string;
 }
 
 interface CartContextType {
@@ -79,7 +82,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items, initialized]);
 
   const addItem = useCallback(async (payload: AddToCartPayload): Promise<CartActionResult> => {
-    const { productId, name, price, image, variant } = payload;
+    const { productId, name, price, image, variant, quantity: qtyIn, selectedColor, selectedStorage } = payload;
+    const addQty = qtyIn != null && Number.isFinite(qtyIn) ? Math.max(1, Math.floor(qtyIn)) : 1;
     if (isApiConfigured() && getToken()) {
       try {
         const res = await backend.addCartItem({
@@ -87,7 +91,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
           name,
           price,
           image: image || '',
+          quantity: addQty,
           variant,
+          selectedColor,
+          selectedStorage,
         });
         setItems(Array.isArray(res) ? res : []);
         return { ok: true };
@@ -104,7 +111,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === productId && (i.variant ?? '') === (variant ?? ''));
       if (existing) {
-        return prev.map((i) => (i.id === existing.id ? { ...i, quantity: i.quantity + 1 } : i));
+        return prev.map((i) => (i.id === existing.id ? { ...i, quantity: i.quantity + addQty } : i));
       }
       return [
         ...prev,
@@ -114,7 +121,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           name,
           variant,
           price,
-          quantity: 1,
+          quantity: addQty,
           image: image || '',
         },
       ];

@@ -2,14 +2,21 @@
  * Kiểu và tiện ích trang tồn kho — dữ liệu sản phẩm lấy từ API admin.
  */
 
+/** Một màu hiển thị (theo JSON `colors` từ backend / form modal). */
+export type StockColorDot = {
+  hex: string;
+  /** Tên màu từ API, dùng cho tooltip */
+  name?: string;
+};
+
 export type StockProduct = {
   id: string;
   name: string;
   category: string;
   price: number;
   piece: number;
-  /** Mã hex (#rrggbb) cho chấm màu */
-  colors: string[];
+  /** Theo `ProductDto.colors` sau khi parse; rỗng khi không cấu hình */
+  colorDots: StockColorDot[];
   /** URL ảnh hoặc data URL */
   image: string;
 };

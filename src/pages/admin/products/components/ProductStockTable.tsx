@@ -46,8 +46,12 @@ const ProductStockTable: React.FC<ProductStockTableProps> = ({ rows, onEdit, onD
                 <td className="py-4 px-4 text-slate-700">{row.category}</td>
                 <td className="py-4 px-4 font-medium tabular-nums">{formatVND(row.price)}</td>
                 <td className="py-4 px-4 tabular-nums text-slate-800">{row.piece}</td>
-                <td className="py-4 px-4">
-                  <ColorDots colors={row.colors} />
+                <td className="py-4 px-4 text-slate-600">
+                  {row.colorDots.length === 0 ? (
+                    <span className="text-slate-400 tabular-nums">—</span>
+                  ) : (
+                    <ColorDots items={row.colorDots} />
+                  )}
                 </td>
                 <td className="py-4 px-4 text-right whitespace-nowrap">
                   <div className="inline-flex items-center gap-2 justify-end">

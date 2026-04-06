@@ -3,8 +3,25 @@ import { Link } from 'react-router-dom';
 import AdminProductsTabs from '@/components/admin/AdminProductsTabs';
 import ProductStockTable from './components/ProductStockTable';
 import InventoryAdjustModal from './components/InventoryAdjustModal';
-import type { StockProduct } from './productStockMock';
+import type { StockColorDot, StockProduct } from './productStockMock';
 import * as backend from '@/services/backend';
+import { parseProductColorsFromApi } from '@/services/productMappers';
+
+function colorDotsFromApi(colorsJson: string | null | undefined): StockColorDot[] {
+  const parsed = parseProductColorsFromApi(colorsJson);
+  const seen = new Set<string>();
+  const out: StockColorDot[] = [];
+  for (const c of parsed) {
+    const hex = c.hex.trim();
+    if (!hex) continue;
+    const key = hex.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const name = c.name?.trim();
+    out.push(name ? { hex, name } : { hex });
+  }
+  return out;
+}
 
 const PAGE_SIZE = 9;
 
@@ -28,7 +45,7 @@ const ProductStockPage: React.FC = () => {
         category: p.categoryName ?? '—',
         price: Number(p.price ?? 0),
         piece: Number(p.stock ?? 0),
-        colors: ['#3B82F6'],
+        colorDots: colorDotsFromApi(p.colors ?? undefined),
         image: p.image ?? 'https://picsum.photos/seed/placeholder/120/120',
       }));
       setProducts(mapped);
