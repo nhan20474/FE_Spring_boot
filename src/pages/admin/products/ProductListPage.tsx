@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminProductsTabs from '@/components/admin/AdminProductsTabs';
 import {
@@ -32,6 +32,9 @@ function getPaginationPages(current: number, total: number): (number | 'ellipsis
 const paginationBtnBase = 'min-w-[36px] h-9 px-2 inline-flex items-center justify-center rounded-md border text-sm font-semibold transition-colors';
 const paginationInactive = `${paginationBtnBase} border-slate-200 bg-white text-slate-800 hover:bg-slate-50`;
 const paginationActive = `${paginationBtnBase} border-primary bg-primary text-white font-bold hover:bg-blue-600`;
+
+/** Tìm qua GET /api/products?q= (storefront); danh sách đầy đủ: GET /api/admin/products. */
+const STORE_SEARCH_SIZE = 500;
 
 const ProductCard: React.FC<{ product: ProductDto; onDelete: (id: number) => void }> = ({ product, onDelete }) => {
   const img = product.image || 'https://placehold.co/400x400?text=No+Image';
@@ -125,23 +128,39 @@ const ProductListPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedQ, setAppliedQ] = useState('');
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await backend.adminGetProducts();
+      const q = appliedQ.trim();
+      const data = q
+        ? await backend.getProducts({
+            q,
+            page: 0,
+            size: STORE_SEARCH_SIZE,
+            sortBy: 'createdAt',
+            sortDir: 'desc',
+          })
+        : await backend.adminGetProducts();
       setProducts(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Không tải được danh sách sản phẩm');
     } finally {
       setLoading(false);
     }
-  };
+  }, [appliedQ]);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    void fetchProducts();
+  }, [fetchProducts]);
+
+  const applySearch = () => {
+    setAppliedQ(searchInput.trim());
+    setPage(1);
+  };
 
   const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
   const pageItems = useMemo(() => {
@@ -171,13 +190,48 @@ const ProductListPage: React.FC = () => {
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-          <div>
+          <div className="min-w-0 flex-1">
             <h1 className="text-[32px] leading-[44px] font-normal tracking-tight text-[#202224]">
               Sản phẩm
             </h1>
             <p className="text-xs font-semibold text-slate-500 mt-1">
               {loading ? 'Đang tải…' : `${products.length} sản phẩm`}
+              {appliedQ ? ' (tìm qua /api/products)' : ''}
             </p>
+            <div className="mt-4 flex flex-wrap gap-2 items-end max-w-xl">
+              <label className="block flex-1 min-w-[200px]">
+                <span className="text-xs font-bold text-slate-600">Tìm theo tên / mô tả</span>
+                <input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') applySearch();
+                  }}
+                  placeholder="Ví dụ: Samsung, tai nghe…"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-primary/25"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={applySearch}
+                className="rounded-xl bg-slate-800 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-900 shrink-0"
+              >
+                Tìm
+              </button>
+              {appliedQ ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('');
+                    setAppliedQ('');
+                    setPage(1);
+                  }}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 shrink-0"
+                >
+                  Xóa lọc
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -198,7 +252,7 @@ const ProductListPage: React.FC = () => {
         <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
           <span className="material-icons text-[20px]">error_outline</span>
           {error}
-          <button onClick={fetchProducts} className="ml-auto text-red-600 underline font-semibold">Thử lại</button>
+          <button type="button" onClick={() => void fetchProducts()} className="ml-auto text-red-600 underline font-semibold">Thử lại</button>
         </div>
       )}
 
@@ -219,10 +273,19 @@ const ProductListPage: React.FC = () => {
       ) : products.length === 0 && !error ? (
         <div className="text-center py-20 text-slate-400">
           <span className="material-icons text-5xl mb-3 block">inventory_2</span>
-          <p className="font-semibold">Chưa có sản phẩm nào</p>
-          <Link to="/admin/products/new" className="mt-4 inline-block text-primary underline text-sm font-semibold">
-            Thêm sản phẩm đầu tiên
-          </Link>
+          {appliedQ ? (
+            <>
+              <p className="font-semibold">Không có sản phẩm khớp &quot;{appliedQ}&quot;</p>
+              <p className="text-sm mt-2">Thử từ khóa khác hoặc xóa lọc để xem toàn bộ danh sách admin.</p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">Chưa có sản phẩm nào</p>
+              <Link to="/admin/products/new" className="mt-4 inline-block text-primary underline text-sm font-semibold">
+                Thêm sản phẩm đầu tiên
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <>
