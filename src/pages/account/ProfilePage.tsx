@@ -3,7 +3,14 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useAvatar } from '@/context/AvatarContext';
 import { isApiConfigured, ApiError } from '@/services/api';
-import { getProfile, updateProfile, changePassword, uploadImage, getAddresses } from '@/services/backend';
+import {
+  getProfile,
+  updateProfile,
+  changePassword,
+  uploadImage,
+  getAddresses,
+  resendVerificationEmail,
+} from '@/services/backend';
 import { addressDtoToSaved } from '@/services/addressMapper';
 import type { ProfileDto } from '@/types/api';
 import type { SavedAddress } from '@/types';
@@ -106,6 +113,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
   const [addressBook, setAddressBook] = useState<SavedAddress[]>([]);
   const [addressBookLoading, setAddressBookLoading] = useState(true);
   const [addressBookError, setAddressBookError] = useState<string | null>(null);
+  const [verifyResendLoading, setVerifyResendLoading] = useState(false);
+  const [verifyResendMsg, setVerifyResendMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentAvatar = avatarUrl ?? DEFAULT_AVATAR;
@@ -322,6 +331,37 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Hồ sơ cá nhân</h1>
             <p className="text-slate-500 mt-1.5">Quản lý thông tin và bảo mật tài khoản.</p>
           </div>
+
+          {!isAdminProfile &&
+            isApiConfigured() &&
+            isAuthenticated &&
+            apiProfile != null &&
+            (apiProfile.emailVerifiedAt == null || apiProfile.emailVerifiedAt === '') && (
+              <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+                <p className="font-medium">Email chưa được xác minh</p>
+                <p className="mt-1 opacity-90">
+                  Kiểm tra hộp thư (và spam) để bấm liên kết xác minh, hoặc gửi lại email.
+                </p>
+                {verifyResendMsg && <p className="mt-2 text-xs">{verifyResendMsg}</p>}
+                <button
+                  type="button"
+                  disabled={verifyResendLoading}
+                  onClick={() => {
+                    setVerifyResendMsg(null);
+                    setVerifyResendLoading(true);
+                    void resendVerificationEmail()
+                      .then((r) => setVerifyResendMsg(r.message ?? 'Đã gửi.'))
+                      .catch((e: unknown) =>
+                        setVerifyResendMsg(e instanceof ApiError ? e.message : 'Không gửi được. Thử lại sau.')
+                      )
+                      .finally(() => setVerifyResendLoading(false));
+                  }}
+                  className="mt-3 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {verifyResendLoading ? 'Đang gửi…' : 'Gửi lại email xác minh'}
+                </button>
+              </div>
+            )}
 
           {/* Avatar */}
           <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md overflow-hidden">

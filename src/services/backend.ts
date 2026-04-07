@@ -162,7 +162,7 @@ export async function fetchAuthMe(): Promise<AuthUserDto> {
   return apiGet<AuthUserDto>('/auth/me', { auth: true });
 }
 
-/** POST /api/auth/forgot-password */
+/** POST /api/auth/forgot-password — resetToken chỉ có khi backend bật EXPOSE_RESET_TOKEN (dev) */
 export async function forgotPassword(email: string): Promise<{
   message: string;
   accepted: boolean;
@@ -175,6 +175,19 @@ export async function forgotPassword(email: string): Promise<{
 /** POST /api/auth/reset-password */
 export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
   return apiPost<{ message: string }>('/auth/reset-password', { token, newPassword }, { auth: false });
+}
+
+/** GET /api/auth/verify-email?token= */
+export async function verifyEmail(token: string): Promise<{ verified: boolean; message: string }> {
+  return apiGet<{ verified: boolean; message: string }>(
+    `/auth/verify-email?token=${encodeURIComponent(token)}`,
+    { auth: false }
+  );
+}
+
+/** POST /api/auth/resend-verification — cần đăng nhập */
+export async function resendVerificationEmail(): Promise<{ message: string }> {
+  return apiPost<{ message: string }>('/auth/resend-verification', {}, { auth: true });
 }
 
 /** GET /api/admin/dashboard/summary */

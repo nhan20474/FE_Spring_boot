@@ -23,6 +23,7 @@ import WishlistPage from '@/pages/account/WishlistPage';
 import SignUpPage from '@/pages/auth/SignUpPage';
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
+import VerifyEmailPage from '@/pages/auth/VerifyEmailPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import PrivateRoute from '@/routes/PrivateRoute';
 import AdminLayout from '@/pages/admin/AdminLayout';
@@ -61,6 +62,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/forgot-password" element={<ForgotPasswordPage />} />
     <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
     <Route path="/reset-password" element={<ResetPasswordPage />} />
+    <Route path="/verify-email" element={<VerifyEmailPage />} />
     <Route path="/orders" element={<OrderHistoryPage />} />
     <Route path="/order/:orderId/invoice" element={<PrivateRoute><OrderInvoicePage /></PrivateRoute>} />
     <Route path="/order/:orderId" element={<OrderDetailsPage />} />

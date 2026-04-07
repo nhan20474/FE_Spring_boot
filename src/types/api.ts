@@ -51,6 +51,8 @@ export interface AuthUserDto {
   email: string;
   /** Backend trả về lowercase: 'admin' | 'customer' */
   role?: 'admin' | 'customer';
+  /** ISO instant — null/undefined nếu chưa xác minh email */
+  emailVerifiedAt?: string | null;
 }
 
 /** Profile từ GET /api/profile (UserDto). */
@@ -64,6 +66,7 @@ export interface ProfileDto {
   dateOfBirth?: string | null;
   defaultAddress?: AddressDto | null;
   passwordChangedAt?: string | null;
+  emailVerifiedAt?: string | null;
 }
 
 export interface AuthResponse {
