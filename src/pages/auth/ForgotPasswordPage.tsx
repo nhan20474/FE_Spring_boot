@@ -62,7 +62,6 @@ const ForgotPasswordPage: React.FC = () => {
           {error && <p className="text-sm text-red-600">{error}</p>}
           {success && (
             <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3 text-sm text-emerald-900 dark:text-emerald-100">
-              <p>{success.message ?? 'Nếu email tồn tại, hướng dẫn đặt lại mật khẩu sẽ được gửi.'}</p>
               <p className="mt-2 text-xs opacity-90">Kiểm tra hộp thư (và thư mục spam).</p>
               {success.resetToken && (
                 <p className="mt-2">
