@@ -335,6 +335,7 @@ const OrderDetailsPage: React.FC = () => {
   };
 
   const invoiceHref = order ? `/order/${encodeURIComponent(order.orderId)}/invoice` : '#';
+  const invoicePrintHref = order ? `${invoiceHref}?autoprint=1` : '#';
 
   if (loading) {
     return (
@@ -405,6 +406,26 @@ const OrderDetailsPage: React.FC = () => {
                   <span className="w-2 h-2 bg-primary rounded-full" />
                   {order.statusLabel}
                 </span>
+                {showApiExtras ? (
+                  <>
+                    <Link
+                      to={invoicePrintHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                    >
+                      <span className="material-icons text-lg">print</span>
+                      In hóa đơn
+                    </Link>
+                    <Link
+                      to={invoiceHref}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-900 border-2 border-primary/30 text-primary text-sm font-bold rounded-xl hover:bg-primary/5 transition-colors"
+                    >
+                      <span className="material-icons text-lg">description</span>
+                      Xem hóa đơn
+                    </Link>
+                  </>
+                ) : null}
                 {canReceiveAndPay && (
                   <button
                     type="button"

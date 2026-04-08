@@ -24,6 +24,7 @@ import SignUpPage from '@/pages/auth/SignUpPage';
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 import VerifyEmailPage from '@/pages/auth/VerifyEmailPage';
+import GoogleOAuthCallbackPage from '@/pages/auth/GoogleOAuthCallbackPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import PrivateRoute from '@/routes/PrivateRoute';
 import AdminLayout from '@/pages/admin/AdminLayout';
@@ -38,6 +39,7 @@ import OrderDetailPage from '@/pages/admin/orders/OrderDetailPage';
 import InvoicePage from '@/pages/admin/orders/InvoicePage';
 import CouponListPage from '@/pages/admin/coupons/CouponListPage';
 import UserListPage from '@/pages/admin/users/UserListPage';
+import InboxPage from '@/pages/admin/InboxPage';
 
 const AppRoutes: React.FC = () => (
   <Routes>
@@ -63,6 +65,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
     <Route path="/reset-password" element={<ResetPasswordPage />} />
     <Route path="/verify-email" element={<VerifyEmailPage />} />
+    <Route path="/oauth/google/callback" element={<GoogleOAuthCallbackPage />} />
     <Route path="/orders" element={<OrderHistoryPage />} />
     <Route path="/order/:orderId/invoice" element={<PrivateRoute><OrderInvoicePage /></PrivateRoute>} />
     <Route path="/order/:orderId" element={<OrderDetailsPage />} />
@@ -79,6 +82,7 @@ const AppRoutes: React.FC = () => (
       <Route path="/admin/categories" element={<CategoryListPage />} />
       <Route path="/admin/coupons" element={<CouponListPage />} />
       <Route path="/admin/users" element={<UserListPage />} />
+      <Route path="/admin/inbox" element={<InboxPage />} />
 
       <Route path="/admin/orders/invoice" element={<InvoicePage />} />
       <Route path="/admin/orders" element={<OrderListPage />} />

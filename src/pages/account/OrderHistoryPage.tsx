@@ -283,8 +283,19 @@ const OrderHistoryPage: React.FC = () => {
                       <p className="text-sm font-bold mt-1 text-slate-900 dark:text-white">#{order.id}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <StatusBadge status={order.status} />
+                    {useApi ? (
+                      <Link
+                        to={`/order/${order.id}/invoice?autoprint=1`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[13px] font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <span className="material-icons text-[18px]">print</span>
+                        In hóa đơn
+                      </Link>
+                    ) : null}
                     <Link
                       to={`/order/${order.id}`}
                       className="px-5 py-2 bg-primary text-white text-[13px] font-bold rounded-lg hover:bg-blue-600 transition-colors"

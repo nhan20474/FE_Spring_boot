@@ -7,11 +7,12 @@ import { useWishlist } from '@/context/WishlistContext';
 import { DEFAULT_PROFILE_IMAGE } from '@/constants/user';
 import { useApiCategories } from '@/hooks/useProductApi';
 import StoreCategoryMegaMenu from '@/components/layout/StoreCategoryMegaMenu';
+import { isAdminRole } from '@/utils/authRole';
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminRole(user?.role);
   const { avatarUrl } = useAvatar();
   const avatarSrc = avatarUrl ?? DEFAULT_PROFILE_IMAGE;
   const [searchQuery, setSearchQuery] = useState('');

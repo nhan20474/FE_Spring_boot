@@ -51,6 +51,8 @@ export interface AuthUserDto {
   email: string;
   /** Backend trả về lowercase: 'admin' | 'customer' */
   role?: 'admin' | 'customer';
+  authProvider?: 'LOCAL' | 'GOOGLE' | string;
+  providerId?: string | null;
   /** ISO instant — null/undefined nếu chưa xác minh email */
   emailVerifiedAt?: string | null;
 }
@@ -60,6 +62,8 @@ export interface ProfileDto {
   id: number;
   name: string;
   email: string;
+  authProvider?: 'LOCAL' | 'GOOGLE' | string;
+  providerId?: string | null;
   avatarUrl?: string | null;
   phone?: string | null;
   gender?: string | null;
@@ -270,6 +274,42 @@ export interface AdminUsersResponse {
   totalPages: number;
 }
 
+/** GET /api/admin/inbox */
+export interface AdminInboxItemDto {
+  auditId: number;
+  orderId: number;
+  customerName: string;
+  oldStatus: string;
+  newStatus: string;
+  actor: string;
+  note?: string | null;
+  changedAt: string;
+  read: boolean;
+}
+
+export interface AdminInboxResponse {
+  items: AdminInboxItemDto[];
+  unreadCount: number;
+}
+
+export interface AdminChatConversationDto {
+  userId: number;
+  userName: string;
+  userEmail: string;
+  lastMessage: string;
+  lastRole: 'user' | 'assistant';
+  lastSentAt: string;
+}
+
+export interface AdminChatConversationMessagesDto {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  messages: ChatMessageDto[];
+}
+
 /** GET /api/wishlist */
 export interface WishlistItemDto {
   id: number;
@@ -320,6 +360,14 @@ export interface CartDto {
   items: CartItemDto[];
   itemCount: number;
   totalPrice: number;
+}
+
+/** Một tin nhắn trong lịch sử chat — GET /api/chat/history */
+export interface ChatMessageDto {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  sentAt: string;
 }
 
 /** Địa chỉ — GET/POST/PATCH /api/addresses */

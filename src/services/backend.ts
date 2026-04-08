@@ -5,6 +5,7 @@
 
 import {
   apiGet,
+  apiGetBlob,
   apiPost,
   apiPut,
   apiPatch,
@@ -40,11 +41,17 @@ import type {
   CreateCouponRequestBody,
   AdminUsersResponse,
   AdminUserDto,
+  AdminInboxResponse,
+  AdminChatConversationDto,
+  AdminChatConversationMessagesDto,
   WishlistItemDto,
   UpsertProductRatingRequest,
   ProductRatingResponseDto,
+  ChatMessageDto,
 } from '@/types/api';
 import type { CartItem } from '@/types';
+
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api';
 
 export interface ProductsParams {
   category?: number;
@@ -288,6 +295,52 @@ export async function adminUpdateUserRole(userId: number | string, role: 'admin'
 /** DELETE /api/admin/users/{id} */
 export async function adminDeleteUser(userId: number | string): Promise<void> {
   return apiDelete<void>(`/admin/users/${userId}`, { auth: true });
+}
+
+/** GET /api/admin/inbox */
+export async function adminGetInbox(limit = 30): Promise<AdminInboxResponse> {
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+  return apiGet<AdminInboxResponse>(`/admin/inbox?limit=${safeLimit}`, { auth: true });
+}
+
+/** PATCH /api/admin/inbox/{auditId}/read */
+export async function adminMarkInboxRead(auditId: number): Promise<{ ok: boolean }> {
+  return apiPatch<{ ok: boolean }>(`/admin/inbox/${auditId}/read`, {}, { auth: true });
+}
+
+/** PATCH /api/admin/inbox/read-all */
+export async function adminMarkAllInboxRead(limit = 100): Promise<{ ok: boolean; updated: number }> {
+  const safeLimit = Math.min(Math.max(limit, 1), 500);
+  return apiPatch<{ ok: boolean; updated: number }>(`/admin/inbox/read-all?limit=${safeLimit}`, {}, { auth: true });
+}
+
+/** GET /api/admin/chat/conversations */
+export async function adminGetChatConversations(limit = 50): Promise<{ items: AdminChatConversationDto[] }> {
+  const safeLimit = Math.min(Math.max(limit, 1), 200);
+  return apiGet<{ items: AdminChatConversationDto[] }>(`/admin/chat/conversations?limit=${safeLimit}`, { auth: true });
+}
+
+/** GET /api/admin/chat/conversations/{userId}/messages */
+export async function adminGetChatMessages(
+  userId: number,
+  limit = 100,
+): Promise<AdminChatConversationMessagesDto> {
+  const safeLimit = Math.min(Math.max(limit, 1), 300);
+  return apiGet<AdminChatConversationMessagesDto>(`/admin/chat/conversations/${userId}/messages?limit=${safeLimit}`, {
+    auth: true,
+  });
+}
+
+/** POST /api/admin/chat/conversations/{userId}/reply */
+export async function adminReplyChatMessage(
+  userId: number,
+  message: string,
+): Promise<{ id: number; role: 'assistant'; content: string; sentAt: string }> {
+  return apiPost<{ id: number; role: 'assistant'; content: string; sentAt: string }>(
+    `/admin/chat/conversations/${userId}/reply`,
+    { message },
+    { auth: true },
+  );
 }
 
 /** GET /api/categories */
@@ -620,6 +673,33 @@ export async function adminGetOrders(params?: {
   };
 }
 
+function saveBlobAsFile(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** GET /api/orders/{id}/invoice.pdf — PDF do backend sinh (chỉ chủ đơn) */
+export async function downloadCustomerOrderInvoicePdf(orderId: number | string): Promise<void> {
+  const blob = await apiGetBlob(`/orders/${orderId}/invoice.pdf`, { auth: true });
+  saveBlobAsFile(blob, `hoa-don-${orderId}.pdf`);
+}
+
+/** GET /api/admin/orders/{id}/invoice.pdf — PDF hóa đơn (admin) */
+export async function downloadAdminOrderInvoicePdf(orderId: number | string): Promise<void> {
+  const blob = await apiGetBlob(`/admin/orders/${orderId}/invoice.pdf`, { auth: true });
+  saveBlobAsFile(blob, `hoa-don-${orderId}.pdf`);
+}
+
 /** GET /api/admin/orders/{id} */
 export async function adminGetOrder(orderId: number | string): Promise<AdminOrderDto> {
   return apiGet<AdminOrderDto>(`/admin/orders/${orderId}`, { auth: true });
@@ -734,6 +814,28 @@ export async function login(body: AuthRequest): Promise<AuthResponse> {
   storeToken(res.token);
   setStoredUser(res.user);
   return res;
+}
+
+/** Build Google OAuth start URL on backend. */
+export function getGoogleLoginUrl(redirectUri?: string): string {
+  const path = '/auth/google';
+  if (!redirectUri) return `${API_BASE}${path}`;
+  return `${API_BASE}${path}?redirectUri=${encodeURIComponent(redirectUri)}`;
+}
+
+/** GET /api/chat/status — cần JWT (trợ lý có bật trên server không) */
+export async function getChatStatus(): Promise<{ available: boolean }> {
+  return apiGet<{ available: boolean }>('/chat/status', { auth: true });
+}
+
+/** GET /api/chat/history?limit= — lấy lịch sử tin nhắn đã lưu trong DB */
+export async function getChatHistory(limit = 50): Promise<{ messages: ChatMessageDto[] }> {
+  return apiGet<{ messages: ChatMessageDto[] }>(`/chat/history?limit=${limit}`, { auth: true });
+}
+
+/** POST /api/chat/message — cần JWT */
+export async function postChatMessage(message: string): Promise<{ reply: string }> {
+  return apiPost<{ reply: string }>('/chat/message', { message }, { auth: true });
 }
 
 /** POST /api/auth/register */
@@ -881,6 +983,11 @@ export async function updateProfile(body: {
   avatarUrl?: string | null;
 }): Promise<ProfileDto> {
   return apiPatch<ProfileDto>('/profile', body, { auth: true });
+}
+
+/** POST /api/profile/linked-accounts/google/unlink */
+export async function unlinkGoogleAccount(): Promise<ProfileDto> {
+  return apiPost<ProfileDto>('/profile/linked-accounts/google/unlink', {}, { auth: true });
 }
 
 /** POST /api/auth/change-password */

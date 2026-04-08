@@ -10,6 +10,8 @@ import {
   uploadImage,
   getAddresses,
   resendVerificationEmail,
+  getGoogleLoginUrl,
+  unlinkGoogleAccount,
 } from '@/services/backend';
 import { addressDtoToSaved } from '@/services/addressMapper';
 import type { ProfileDto } from '@/types/api';
@@ -34,8 +36,8 @@ export interface ProfileExtension {
 }
 
 const defaultProfile: ProfileExtension = {
-  fullName: 'Danh Lê',
-  phone: '0913955274',
+  fullName: '',
+  phone: '',
   gender: '',
   dateOfBirth: '',
 };
@@ -49,7 +51,7 @@ function toProfileExtension(dto: ProfileDto): ProfileExtension {
   };
 }
 
-const DEFAULT_PASSWORD_UPDATED = '24/01/2024 11:46';
+const DEFAULT_PASSWORD_UPDATED = '--';
 
 function loadProfile(): ProfileExtension {
   try {
@@ -115,11 +117,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
   const [addressBookError, setAddressBookError] = useState<string | null>(null);
   const [verifyResendLoading, setVerifyResendLoading] = useState(false);
   const [verifyResendMsg, setVerifyResendMsg] = useState<string | null>(null);
+  const [googleLinkLoading, setGoogleLinkLoading] = useState(false);
+  const [googleLinkMsg, setGoogleLinkMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentAvatar = avatarUrl ?? DEFAULT_AVATAR;
   const displayName = user?.name ?? profile.fullName;
-  const displayEmail = user?.email ?? 'danh1924.d@gmail.com';
+  const displayEmail = user?.email ?? '-';
 
   useEffect(() => {
     setProfile(loadProfile());
@@ -236,6 +240,30 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
   const displayPasswordUpdated = isApiConfigured() && apiProfile?.passwordChangedAt
     ? formatPasswordChangedAt(apiProfile.passwordChangedAt)
     : passwordUpdated;
+  const isGoogleLinked = apiProfile?.authProvider?.toUpperCase() === 'GOOGLE';
+
+  const handleLinkGoogle = useCallback(() => {
+    if (googleLinkLoading) return;
+    setGoogleLinkMsg(null);
+    const redirectUri = `${window.location.origin}/#/oauth/google/callback`;
+    window.location.href = getGoogleLoginUrl(redirectUri);
+  }, [googleLinkLoading]);
+
+  const handleUnlinkGoogle = useCallback(async () => {
+    if (googleLinkLoading) return;
+    setGoogleLinkLoading(true);
+    setGoogleLinkMsg(null);
+    try {
+      const updated = await unlinkGoogleAccount();
+      setApiProfile(updated);
+      setGoogleLinkMsg('Đã hủy liên kết Google.');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Không thể hủy liên kết Google.';
+      setGoogleLinkMsg(msg);
+    } finally {
+      setGoogleLinkLoading(false);
+    }
+  }, [googleLinkLoading]);
 
   const openPasswordModal = useCallback(() => {
     setChangePasswordError(null);
@@ -606,14 +634,28 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
                   </div>
                   <div>
                     <p className="font-bold text-slate-900 dark:text-white">Google</p>
-                    <p className="text-sm text-green-600 dark:text-green-400 font-medium">Đã liên kết</p>
+                    <p
+                      className={`text-sm font-medium ${
+                        isGoogleLinked
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      {isGoogleLinked ? 'Đã liên kết' : 'Chưa liên kết'}
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="px-4 py-2 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  onClick={isGoogleLinked ? () => void handleUnlinkGoogle() : handleLinkGoogle}
+                  disabled={googleLinkLoading}
+                  className={
+                    isGoogleLinked
+                      ? 'px-4 py-2 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-60'
+                      : 'px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-60'
+                  }
                 >
-                  Hủy liên kết
+                  {googleLinkLoading ? 'Đang xử lý...' : isGoogleLinked ? 'Hủy liên kết' : 'Liên kết'}
                 </button>
               </div>
               <div className="px-6 py-5 flex items-center justify-between flex-wrap gap-4">
@@ -634,6 +676,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ variant = 'customer' }) => {
                 </button>
               </div>
             </div>
+            {googleLinkMsg && (
+              <div className="px-6 py-3 text-sm text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-slate-800">
+                {googleLinkMsg}
+              </div>
+            )}
           </section>
         </main>
       </div>

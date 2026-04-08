@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useAvatar } from '@/context/AvatarContext';
 import { DEFAULT_PROFILE_IMAGE } from '@/constants/user';
+import { adminGetInbox } from '@/services/backend';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -21,6 +22,7 @@ const AdminTopbar: React.FC<AdminTopbarProps> = ({ onToggleSidebar, sidebarColla
   const { avatarUrl } = useAvatar();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [unreadInboxCount, setUnreadInboxCount] = useState(0);
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +33,20 @@ const AdminTopbar: React.FC<AdminTopbarProps> = ({ onToggleSidebar, sidebarColla
     if (isProfileOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isProfileOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void adminGetInbox(20)
+      .then((res) => {
+        if (!cancelled) setUnreadInboxCount(Number(res.unreadCount ?? 0));
+      })
+      .catch(() => {
+        if (!cancelled) setUnreadInboxCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const displayName = user?.name ?? 'Admin';
   const email = user?.email ?? 'admin@techhome.local';
@@ -69,13 +85,18 @@ const AdminTopbar: React.FC<AdminTopbarProps> = ({ onToggleSidebar, sidebarColla
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            aria-label="Notifications"
+          <Link
+            to="/admin/inbox"
+            className="relative w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors inline-flex items-center justify-center"
+            aria-label="Inbox"
           >
             <span className="material-icons text-slate-600 dark:text-slate-300">notifications_none</span>
-          </button>
+            {unreadInboxCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold px-1 flex items-center justify-center">
+                {unreadInboxCount > 99 ? '99+' : unreadInboxCount}
+              </span>
+            )}
+          </Link>
 
           <div className="relative" ref={profileRef}>
             <button

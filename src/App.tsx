@@ -6,6 +6,7 @@ import { CartProvider } from '@/context/CartContext';
 import { CheckoutProvider } from '@/context/CheckoutContext';
 import { WishlistProvider } from '@/context/WishlistContext';
 import AppRoutes from '@/routes/AppRoutes';
+import SupportChatWidget from '@/components/chat/SupportChatWidget';
 
 const App: React.FC = () => (
   <HashRouter>
@@ -15,6 +16,7 @@ const App: React.FC = () => (
           <WishlistProvider>
             <CheckoutProvider>
               <AppRoutes />
+              <SupportChatWidget />
             </CheckoutProvider>
           </WishlistProvider>
         </CartProvider>

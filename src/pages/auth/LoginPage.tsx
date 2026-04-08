@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, ApiError } from '@/context/AuthContext';
 import { isApiConfigured } from '@/services/api';
+import { getGoogleLoginUrl } from '@/services/backend';
+import { isAdminRole } from '@/utils/authRole';
 
 const LIFESTYLE_IMAGE =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBRdFsiGk4SP_bjqG5nhQ3WnkqM5_kHiLF-HzDJE_CzwScqXmpJL3QwB150GmyuDskBohtdzEbtIE9FIvZHnjlwJ-dThhEzlz86iO9PZUAQsrU3uHTAS8OIdsvSksMprpdAUQl09DiwICQVQKAGvUAuCXs6-yqhr8PWpak4ZdQZlfdg3R5tHj986A884VRx_pzQRrsPmu0UoIC4wKvvZWAIp805uqdiIKueCNTM7UTV6W21NxWakcxMjHbuFN6ipipXQGvysqtBIec';
@@ -26,7 +28,7 @@ const LoginPage: React.FC = () => {
       setLoading(true);
       try {
         const res = await login({ email: email.trim(), password });
-        navigate(res.user.role === 'admin' ? '/admin/dashboard' : '/');
+        navigate(isAdminRole(res.user.role) ? '/admin/dashboard' : '/');
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Đăng nhập thất bại.');
       } finally {
@@ -35,6 +37,12 @@ const LoginPage: React.FC = () => {
     } else {
       navigate('/');
     }
+  };
+
+  const handleGoogleLogin = () => {
+    // App uses HashRouter, callback URL must include "/#/".
+    const redirectUri = `${window.location.origin}/#/oauth/google/callback`;
+    window.location.href = getGoogleLoginUrl(redirectUri);
   };
 
   return (
@@ -163,6 +171,7 @@ const LoginPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
+                onClick={handleGoogleLogin}
                 className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 dark:border-primary/20 rounded-lg hover:bg-gray-50 dark:hover:bg-primary/10 transition-colors"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden>

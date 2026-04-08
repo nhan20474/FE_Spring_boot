@@ -11,6 +11,7 @@ const navGroups: Array<{
       { label: 'Products', path: '/admin/products', icon: 'inventory_2' },
       { label: 'Categories', path: '/admin/categories', icon: 'category' },
       { label: 'Orders', path: '/admin/orders', icon: 'receipt_long' },
+      { label: 'Inbox', path: '/admin/inbox', icon: 'inbox' },
       { label: 'Coupons', path: '/admin/coupons', icon: 'local_offer' },
       { label: 'Users', path: '/admin/users', icon: 'group' },
     ],
@@ -37,6 +38,7 @@ function pathMatchesItem(currentPath: string, itemPath: string): boolean {
     return currentPath === '/admin/orders' || currentPath.startsWith('/admin/orders/');
   }
   if (itemPath === '/admin/categories') return currentPath.startsWith('/admin/categories');
+  if (itemPath === '/admin/inbox') return currentPath.startsWith('/admin/inbox');
   if (itemPath === '/admin/coupons') return currentPath.startsWith('/admin/coupons');
   if (itemPath === '/admin/users') return currentPath.startsWith('/admin/users');
   if (itemPath === '/login') return false;

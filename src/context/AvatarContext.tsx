@@ -35,14 +35,15 @@ export const AvatarProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
-  // Reload cache when switching user.
+  // Reload cache when switching user; fall back to avatar from auth provider (e.g. Google).
   useEffect(() => {
     try {
-      setAvatarUrlState(localStorage.getItem(avatarKey));
+      const cached = localStorage.getItem(avatarKey);
+      setAvatarUrlState(cached ?? user?.avatarUrl ?? null);
     } catch {
-      setAvatarUrlState(null);
+      setAvatarUrlState(user?.avatarUrl ?? null);
     }
-  }, [avatarKey]);
+  }, [avatarKey, user?.avatarUrl]);
 
   const setAvatarUrl = useCallback(
     (url: string | null) => {

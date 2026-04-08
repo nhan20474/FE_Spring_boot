@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { getOrder, getAddresses } from '@/services/backend';
+import { getOrder, getAddresses, downloadCustomerOrderInvoicePdf } from '@/services/backend';
+import { ApiError } from '@/services/api';
 import { formatVND } from '@/utils';
 import { addressDtoToSaved } from '@/services/addressMapper';
 import type { OrderDto } from '@/types/api';
@@ -12,6 +13,7 @@ const OrderInvoicePage: React.FC = () => {
 
   const [dto, setDto] = useState<OrderDto | null>(null);
   const [buyerBlock, setBuyerBlock] = useState<string>('—');
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -88,10 +90,30 @@ const OrderInvoicePage: React.FC = () => {
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-4 py-2 text-sm font-semibold hover:opacity-90"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
               <span className="material-icons text-lg">print</span>
-              In / PDF
+              In trang
+            </button>
+            <button
+              type="button"
+              disabled={pdfLoading}
+              onClick={() => {
+                void (async () => {
+                  setPdfLoading(true);
+                  try {
+                    await downloadCustomerOrderInvoicePdf(orderId);
+                  } catch (e) {
+                    window.alert(e instanceof ApiError ? e.message : 'Không tải được PDF từ máy chủ.');
+                  } finally {
+                    setPdfLoading(false);
+                  }
+                })();
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary text-white px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              <span className="material-icons text-lg">picture_as_pdf</span>
+              {pdfLoading ? 'Đang tải…' : 'Tải PDF'}
             </button>
           </div>
         </div>
@@ -156,6 +178,37 @@ const OrderInvoicePage: React.FC = () => {
                 <span className="font-bold">Tổng thanh toán</span>
                 <span className="font-bold text-primary tabular-nums">{formatVND(total)}</span>
               </div>
+            </div>
+
+            <div className="mt-8 flex justify-end items-center gap-3 print:hidden">
+              <button
+                type="button"
+                disabled={pdfLoading}
+                onClick={() => {
+                  void (async () => {
+                    setPdfLoading(true);
+                    try {
+                      await downloadCustomerOrderInvoicePdf(orderId);
+                    } catch (e) {
+                      window.alert(e instanceof ApiError ? e.message : 'Không tải được PDF từ máy chủ.');
+                    } finally {
+                      setPdfLoading(false);
+                    }
+                  })();
+                }}
+                className="w-11 h-11 rounded-xl border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors inline-flex items-center justify-center shadow-sm disabled:opacity-50"
+                aria-label="Tải PDF"
+              >
+                <span className="material-icons text-[20px]">picture_as_pdf</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="w-11 h-11 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors inline-flex items-center justify-center shadow-sm"
+                aria-label="In hóa đơn"
+              >
+                <span className="material-icons text-[20px]">print</span>
+              </button>
             </div>
           </section>
         )}

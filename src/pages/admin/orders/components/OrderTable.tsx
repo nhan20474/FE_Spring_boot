@@ -1,15 +1,17 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { AdminOrderRow } from '../orderListMock';
 import { formatOrderDate } from '../orderListUtils';
 import OrderStatusBadge from './OrderStatusBadge';
+import { downloadAdminOrderInvoicePdf } from '@/services/backend';
+import { ApiError } from '@/services/api';
 
 type OrderTableProps = {
   rows: AdminOrderRow[];
 };
 
 const OrderTable: React.FC<OrderTableProps> = ({ rows }) => {
-  const navigate = useNavigate();
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
 
   return (
     <div className="overflow-x-auto">
@@ -66,15 +68,23 @@ const OrderTable: React.FC<OrderTableProps> = ({ rows }) => {
                     </Link>
                     <button
                       type="button"
-                      onClick={() =>
-                        navigate(
-                          `/admin/orders/invoice?orderId=${encodeURIComponent(row.id)}&autoprint=1`,
-                        )
-                      }
-                      className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+                      disabled={pdfLoadingId === row.id}
+                      onClick={() => {
+                        void (async () => {
+                          setPdfLoadingId(row.id);
+                          try {
+                            await downloadAdminOrderInvoicePdf(row.id);
+                          } catch (e) {
+                            window.alert(e instanceof ApiError ? e.message : 'Không tải được PDF.');
+                          } finally {
+                            setPdfLoadingId(null);
+                          }
+                        })();
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none"
                     >
                       <span className="material-icons text-[16px]">picture_as_pdf</span>
-                      Tải PDF
+                      {pdfLoadingId === row.id ? 'Đang tải…' : 'Tải PDF'}
                     </button>
                   </div>
                 </td>

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { getToken, getStoredUser, clearToken, setStoredUser } from '@/services/api';
+import { getToken, getStoredUser, clearToken, setStoredUser, setToken } from '@/services/api';
 import * as backend from '@/services/backend';
 import type { AuthUserDto, AuthRequest, AuthResponse, RegisterRequest } from '@/types/api';
 import { ApiError } from '@/services/api';
@@ -12,6 +12,7 @@ export interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (body: AuthRequest) => Promise<AuthResponse>;
+  loginWithToken: (token: string) => Promise<void>;
   register: (body: RegisterRequest) => Promise<AuthResponse>;
   logout: () => void;
   updateCurrentUser: (patch: Partial<AuthUserDto>) => void;
@@ -56,6 +57,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return res;
   }, []);
 
+  const loginWithToken = useCallback(async (token: string): Promise<void> => {
+    setToken(token);
+    try {
+      const user = await backend.fetchAuthMe();
+      setStoredUser(user);
+      setUser(user);
+    } catch {
+      clearToken();
+      setUser(null);
+      throw new ApiError('Đăng nhập Google thất bại.', 401);
+    }
+  }, []);
+
   const logout = useCallback(() => {
     backend.logout();
     setUser(null);
@@ -77,6 +91,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isAuthenticated: Boolean(user),
     isInitialized,
     login,
+    loginWithToken,
     register,
     logout,
     updateCurrentUser,

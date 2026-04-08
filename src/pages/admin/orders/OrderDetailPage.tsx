@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   adminGetOrder,
   adminGetOrderReturns,
@@ -8,6 +8,7 @@ import {
   adminUpdateOrderStatus,
   adminGetShipment,
   adminUpsertShipment,
+  downloadAdminOrderInvoicePdf,
 } from '@/services/backend';
 import { ApiError } from '@/services/api';
 import type { AdminOrderDto, OrderStatusHistoryDto, ReturnRequestDto, ShipmentDto } from '@/types/api';
@@ -137,15 +138,9 @@ function FlashMessage({ type, text }: { type: 'ok' | 'err'; text: string }) {
 
 const OrderDetailPage: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
-  const navigate = useNavigate();
 
   const invoiceHref =
     orderId != null ? `/admin/orders/invoice?orderId=${encodeURIComponent(orderId)}` : '/admin/orders/invoice';
-
-  const handleDownloadPdf = () => {
-    if (orderId == null) return;
-    navigate(`/admin/orders/invoice?orderId=${encodeURIComponent(orderId)}&autoprint=1`);
-  };
 
   const [order, setOrder] = useState<AdminOrderDto | null>(null);
   const [loading, setLoading] = useState(false);
@@ -170,6 +165,7 @@ const OrderDetailPage: React.FC = () => {
   const [changerOpen, setChangerOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [invoicePdfLoading, setInvoicePdfLoading] = useState(false);
 
   const loadShipment = useCallback(async () => {
     if (!orderId) {
@@ -186,6 +182,20 @@ const OrderDetailPage: React.FC = () => {
     } finally {
       setShipmentLoading(false);
     }
+  }, [orderId]);
+
+  const handleDownloadInvoicePdf = useCallback(() => {
+    if (!orderId) return;
+    void (async () => {
+      setInvoicePdfLoading(true);
+      try {
+        await downloadAdminOrderInvoicePdf(orderId);
+      } catch (e) {
+        window.alert(e instanceof ApiError ? e.message : 'Không tải được PDF từ máy chủ.');
+      } finally {
+        setInvoicePdfLoading(false);
+      }
+    })();
   }, [orderId]);
 
   useEffect(() => {
@@ -372,11 +382,12 @@ const OrderDetailPage: React.FC = () => {
             </Link>
             <button
               type="button"
-              onClick={handleDownloadPdf}
-              className={`${btnIcon} border-primary/30 bg-primary/5 text-primary hover:bg-primary/10`}
+              disabled={invoicePdfLoading}
+              onClick={handleDownloadInvoicePdf}
+              className={`${btnIcon} border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none`}
             >
               <span className="material-icons text-lg">picture_as_pdf</span>
-              Tải PDF
+              {invoicePdfLoading ? 'Đang tải…' : 'Tải PDF'}
             </button>
           </div>
         )}

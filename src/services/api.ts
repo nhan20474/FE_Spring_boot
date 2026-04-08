@@ -82,6 +82,18 @@ export async function apiGet<T>(path: string, options: ApiGetOptions = {}): Prom
   return res.json();
 }
 
+/** GET nhị phân (PDF, …) — trả Blob khi 2xx */
+export async function apiGetBlob(path: string, options: ApiGetOptions = {}): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  if (options.auth !== false && API_BASE) {
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}${path}`, { headers });
+  if (!res.ok) throw await parseErrorResponse(res);
+  return res.blob();
+}
+
 export interface ApiPostOptions {
   auth?: boolean;
 }
